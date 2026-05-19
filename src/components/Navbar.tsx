@@ -1,4 +1,5 @@
-import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History } from 'lucide-react';
+import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield } from 'lucide-react';
+import type { AppPage } from '../pages/admin/AdminPage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
@@ -19,7 +20,7 @@ const mockUser: UserData = {
   ],
 };
 
-export default function Navbar({ onNavigate }: { onNavigate?: (page: 'home' | 'order-history') => void }) {
+export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) => void }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
@@ -106,9 +107,13 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: 'home' | 'o
               >
                 <span className="text-slate-600 hover:text-brand-primary text-[14px] font-black tracking-tight transition-all py-2 cursor-pointer">Lịch sử</span>
               </button>
-              <a href="#" className="flex items-center gap-1.5 text-orange-500 font-black text-[13px] uppercase tracking-wider hover:text-brand-primary transition-all ml-2">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('deposit')}
+                className="flex items-center gap-1.5 text-orange-500 font-black text-[13px] uppercase tracking-wider hover:text-brand-primary transition-all ml-2"
+              >
                 <span className="relative">Nạp tiền</span>
-              </a>
+              </button>
             </nav>
           </div>
 
@@ -224,6 +229,15 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: 'home' | 'o
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors"
                             >
                               <History className="w-4 h-4" /> Lịch sử đơn hàng
+                            </button>
+                            <button
+                              onClick={() => {
+                                onNavigate?.('admin');
+                                setShowUserMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-emerald-50 text-sm font-bold text-brand-primary transition-colors"
+                            >
+                              <Shield className="w-4 h-4" /> Quản lý admin
                             </button>
                             <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
                               <Bell className="w-4 h-4" /> Thông báo

@@ -1,0 +1,53 @@
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+            <p className="text-xs font-bold uppercase text-slate-500">Nạp tiền (trang khách hàng)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold text-slate-500">Nạp tối thiểu</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={form.minDepositCurrency === 'USD' ? 0.01 : 1}
+                  value={form.minDepositAmount}
+                  onChange={(e) =>
+                    setForm({ ...form, minDepositAmount: Number(e.target.value) || 0 })
+                  }
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold text-slate-500">Loại tiền</label>
+                <select
+                  value={form.minDepositCurrency}
+                  onChange={(e) => {
+                    const currency = e.target.value as DepositCurrency;
+                    setForm({
+                      ...form,
+                      minDepositCurrency: currency,
+                      minDepositAmount:
+                        currency === 'USD' ? DEFAULT_MIN_DEPOSIT_USD : DEFAULT_MIN_DEPOSIT_VND,
+                    });
+                  }}
+                  className={inputClass}
+                >
+                  <option value="VND">VND (Việt Nam đồng)</option>
+                  <option value="USD">USD (Đô la Mỹ)</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Mặc định: {formatMinDeposit(DEFAULT_MIN_DEPOSIT_VND, 'VND')} hoặc{' '}
+              {formatMinDeposit(DEFAULT_MIN_DEPOSIT_USD, 'USD')}
+            </p>
+            <div>
+              <label className="mb-1.5 block text-[11px] font-bold text-slate-500">
+                Lưu ý nạp tiền riêng cổng này
+              </label>
+              <textarea
+                value={form.depositNote}
+                onChange={(e) => setForm({ ...form, depositNote: e.target.value })}
+                rows={3}
+                placeholder="Hiển thị khi khách chọn cổng này trên trang nạp tiền..."
+                className={`${inputClass} resize-y text-[13px] font-medium`}
+              />
+            </div>
+          </div>

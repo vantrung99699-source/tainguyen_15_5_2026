@@ -1,0 +1,123 @@
+            <FormFieldLabel required>Icon:</FormFieldLabel>
+            <div className="mb-3 flex rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+              <button
+                type="button"
+                onClick={() => switchIconSourceMode('preset')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                  iconSourceMode === 'preset'
+                    ? 'bg-white text-brand-primary shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Icon có sẵn
+              </button>
+              <button
+                type="button"
+                onClick={() => switchIconSourceMode('upload')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                  iconSourceMode === 'upload'
+                    ? 'bg-white text-brand-primary shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-700'
+                }`}
+              >
+                Tải icon lên
+              </button>
+            </div>
+
+            {iconSourceMode === 'preset' ? (
+              <div ref={iconPickerRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIconPickerOpen((open) => !open)}
+                  className={`flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2.5 text-left transition-all ${
+                    iconPickerOpen
+                      ? 'border-brand-primary ring-2 ring-brand-primary/10'
+                      : 'border-zinc-200 hover:border-zinc-300'
+                  }`}
+                >
+                  {selectedPreset ? (
+                    <>
+                      <CategoryIconAvatar preset={selectedPreset} size="sm" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-800">
+                        {selectedPreset.name}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="flex-1 text-sm text-zinc-400">Chọn icon mạng xã hội…</span>
+                  )}
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${iconPickerOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {iconPickerOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute left-0 right-0 z-20 mt-1 max-h-[240px] overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg ring-1 ring-black/5"
+                    >
+                      {SOCIAL_ICON_PRESETS.map((preset) => {
+                        const Icon =
+                          (LucideIcons as Record<
+                            string,
+                            ComponentType<{ className?: string; style?: CSSProperties }>
+                          >)[preset.icon] || LucideIcons.LayoutGrid;
+                        const isSelected = selectedPresetId === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => selectPreset(preset.id)}
+                            className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                              isSelected ? 'bg-emerald-50 text-brand-primary' : 'hover:bg-zinc-50'
+                            }`}
+                          >
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                              style={{ backgroundColor: preset.color || '#64748b' }}
+                            >
+                              <Icon className="h-4 w-4 text-white" />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-800">
+                              {preset.name}
+                            </span>
+                            {isSelected && (
+                              <span className="text-[11px] font-bold text-brand-primary">Đã chọn</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleIconChange}
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100"
+                  >
+                    Chọn file
+                  </button>
+                  <span className="text-sm text-zinc-500">{iconFile ? iconFile.name : 'Chưa chọn file'}</span>
+                </div>
+                {iconPreview && (
+                  <div className="mt-3">
+                    <CategoryIconAvatar iconUrl={iconPreview} size="sm" />
+                  </div>
+                )}
+              </>
+            )}
+            {iconError && <p className="mt-1 text-[12px] font-medium text-red-600">{iconError}</p>}

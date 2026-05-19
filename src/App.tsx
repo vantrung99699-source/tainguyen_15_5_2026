@@ -4,6 +4,8 @@ import HeroBanner from './components/HeroBanner';
 import CategoryFilter from './components/CategoryFilter';
 import ProductCard from './components/ProductCard';
 import OrderHistory from './pages/OrderHistory';
+import DepositPage from './pages/DepositPage';
+import AdminPage, { type AppPage } from './pages/admin/AdminPage';
 import { PRODUCTS, CATEGORIES } from './constants';
 import { motion, AnimatePresence } from 'motion/react';
 import { TrendingUp, Sparkles } from 'lucide-react';
@@ -12,7 +14,7 @@ import * as LucideIcons from 'lucide-react';
 export default function App() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(12);
-  const [currentPage, setCurrentPage] = useState<'home' | 'order-history'>('home');
+  const [currentPage, setCurrentPage] = useState<AppPage>('home');
 
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'all') return PRODUCTS;
@@ -84,6 +86,10 @@ export default function App() {
     });
   }, [activeCategory]);
 
+  if (currentPage === 'admin') {
+    return <AdminPage onNavigateHome={() => setCurrentPage('home')} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#fcfcfd]">
       <Navbar onNavigate={setCurrentPage} />
@@ -91,6 +97,8 @@ export default function App() {
       <main className="pb-32">
         {currentPage === 'order-history' ? (
           <OrderHistory />
+        ) : currentPage === 'deposit' ? (
+          <DepositPage />
         ) : (
           <>
             <HeroBanner />

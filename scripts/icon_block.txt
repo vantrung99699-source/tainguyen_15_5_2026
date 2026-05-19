@@ -1,0 +1,73 @@
+          <div>
+            <FormFieldLabel required>Icon:</FormFieldLabel>
+            <p className="mb-2 text-[12px] text-zinc-500">Chọn icon mạng xã hội / nền tảng có sẵn</p>
+            <div className="max-h-[200px] overflow-y-auto rounded-xl border border-zinc-200 bg-zinc-50/50 p-3">
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                {SOCIAL_ICON_PRESETS.map((preset) => {
+                  const Icon =
+                    (LucideIcons as Record<string, ComponentType<{ className?: string; style?: CSSProperties }>>)[
+                      preset.icon
+                    ] || LucideIcons.LayoutGrid;
+                  const isSelected = selectedPresetId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      title={preset.name}
+                      onClick={() => selectPreset(preset.id)}
+                      className={`flex flex-col items-center gap-1.5 rounded-xl border p-2 transition-all ${
+                        isSelected
+                          ? 'border-brand-primary bg-white shadow-md ring-2 ring-brand-primary/30'
+                          : 'border-transparent bg-white hover:border-zinc-200 hover:shadow-sm'
+                      }`}
+                    >
+                      <span
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: preset.color || '#64748b' }}
+                      >
+                        <Icon className="h-5 w-5 text-white" />
+                      </span>
+                      <span className="line-clamp-2 text-center text-[9px] font-bold leading-tight text-zinc-600">
+                        {preset.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {(selectedPreset || iconPreview) && (
+              <div className="mt-3 flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+                <CategoryIconAvatar preset={selectedPreset} iconUrl={iconPreview || undefined} size="sm" />
+                <div className="min-w-0 text-[12px]">
+                  <p className="font-bold text-zinc-800">
+                    {selectedPreset ? selectedPreset.name : iconFile?.name}
+                  </p>
+                  <p className="text-zinc-500">{selectedPreset ? 'Icon có sẵn' : 'Icon tải lên'}</p>
+                </div>
+              </div>
+            )}
+
+            <p className="my-3 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+              hoặc tải icon lên
+            </p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleIconChange}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100"
+              >
+                Chọn file
+              </button>
+              <span className="text-sm text-zinc-500">{iconFile ? iconFile.name : 'Chưa chọn file'}</span>
+            </div>
+            {iconError && <p className="mt-1 text-[12px] font-medium text-red-600">{iconError}</p>}
+          </div>
