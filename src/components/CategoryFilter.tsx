@@ -1,18 +1,64 @@
 import { CATEGORIES } from '../constants';
 import * as LucideIcons from 'lucide-react';
 import { motion } from 'motion/react';
+import type { CategoryFilterLayout } from '../types/siteDesign';
+import { PanelLeft, LayoutGrid } from 'lucide-react';
 
 interface CategoryFilterProps {
   activeCategory: string;
   setActiveCategory: (id: string) => void;
+  layout?: CategoryFilterLayout;
 }
 
-export default function CategoryFilter({ activeCategory, setActiveCategory }: CategoryFilterProps) {
+export default function CategoryFilter({
+  activeCategory,
+  setActiveCategory,
+  layout = 'grid',
+}: CategoryFilterProps) {
+  if (layout === 'sidebar') {
+    return (
+      <aside className="w-full shrink-0 lg:w-[220px]">
+        <p className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+          <PanelLeft className="h-3.5 w-3.5" />
+          Danh mục
+        </p>
+        <nav className="flex flex-col gap-1">
+          {CATEGORIES.map((cat, index) => {
+            const Icon = (LucideIcons as Record<string, typeof LucideIcons.LayoutGrid>)[cat.icon] || LucideIcons.LayoutGrid;
+            const isActive = activeCategory === cat.id;
+            return (
+              <motion.button
+                key={cat.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.02 }}
+                type="button"
+                onClick={() => setActiveCategory(cat.id)}
+                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[11px] font-black uppercase tracking-tight transition-all ${
+                  isActive
+                    ? 'bg-brand-primary text-white shadow-md shadow-emerald-100'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-brand-primary'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" style={{ color: isActive ? 'white' : cat.color }} />
+                <span className="truncate">{cat.name}</span>
+              </motion.button>
+            );
+          })}
+        </nav>
+      </aside>
+    );
+  }
+
   return (
     <div className="w-full">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <p className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Danh mục
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {CATEGORIES.map((cat, index) => {
-          const Icon = (LucideIcons as any)[cat.icon] || LucideIcons.LayoutGrid;
+          const Icon = (LucideIcons as Record<string, typeof LucideIcons.LayoutGrid>)[cat.icon] || LucideIcons.LayoutGrid;
           const isActive = activeCategory === cat.id;
 
           return (
@@ -21,17 +67,15 @@ export default function CategoryFilter({ activeCategory, setActiveCategory }: Ca
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.01 }}
+              type="button"
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all text-[11px] font-black tracking-tight border select-none cursor-pointer group hover:shadow-md ${
-                isActive 
-                  ? 'bg-brand-primary border-brand-primary text-white shadow-lg shadow-emerald-100' 
-                  : 'bg-white border-slate-100 text-slate-500 hover:border-brand-primary/30 hover:text-brand-primary'
+              className={`flex cursor-pointer select-none items-center gap-2.5 rounded-xl border px-4 py-3 text-[11px] font-black tracking-tight transition-all hover:shadow-md ${
+                isActive
+                  ? 'border-brand-primary bg-brand-primary text-white shadow-lg shadow-emerald-100'
+                  : 'border-slate-100 bg-white text-slate-500 hover:border-brand-primary/30 hover:text-brand-primary'
               }`}
             >
-              <Icon 
-                className={`w-5 h-5 shrink-0 transition-colors`} 
-                style={{ color: isActive ? 'white' : cat.color }}
-              />
+              <Icon className="h-5 w-5 shrink-0 transition-colors" style={{ color: isActive ? 'white' : cat.color }} />
               <span className="truncate uppercase">{cat.name}</span>
             </motion.button>
           );

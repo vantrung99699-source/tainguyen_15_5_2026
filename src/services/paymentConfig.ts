@@ -1,5 +1,9 @@
-import type { PaymentGateway, PaymentGlobalSettings } from '../types/payment';
+import type { DepositPromotionTier, PaymentGateway, PaymentGlobalSettings } from '../types/payment';
 import { DEFAULT_MIN_DEPOSIT_USD, DEFAULT_MIN_DEPOSIT_VND } from '../types/payment';
+import { getDefaultTiersForCurrency, normalizePromotionTier } from './depositPromotion';
+
+export const PAYMENT_SETTINGS_UPDATED = 'taphoammo-payment-settings-updated';
+export const PAYMENT_GATEWAYS_UPDATED = 'taphoammo-payment-gateways-updated';
 
 const GATEWAYS_KEY = 'taphoammo_payment_gateways';
 const SETTINGS_KEY = 'taphoammo_payment_settings';
@@ -13,6 +17,18 @@ export const DEFAULT_GLOBAL_SETTINGS: PaymentGlobalSettings = {
   depositSyntaxType: 'prefix_id',
   depositPrefix: 'NAPTIEN',
 };
+
+function normalizeGatewayTiers(
+  raw: unknown,
+  currency: PaymentGateway['minDepositCurrency'],
+): DepositPromotionTier[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return getDefaultTiersForCurrency(currency);
+  }
+  return (raw as Partial<DepositPromotionTier>[])
+    .map((item, i) => normalizePromotionTier(item, i))
+    .filter((t) => t.currency === currency);
+}
 
 function normalizeGateway(raw: Partial<PaymentGateway> & Record<string, unknown>): PaymentGateway {
   const currency = raw.minDepositCurrency === 'USD' ? 'USD' : 'VND';
@@ -37,6 +53,8 @@ function normalizeGateway(raw: Partial<PaymentGateway> & Record<string, unknown>
     depositNote: String(raw.depositNote ?? ''),
     accountNumber: String(raw.accountNumber ?? ''),
     accountHolder: String(raw.accountHolder ?? 'TAPHOAMMO'),
+    depositPromotionEnabled: raw.depositPromotionEnabled !== false,
+    depositPromotionTiers: normalizeGatewayTiers(raw.depositPromotionTiers, currency),
   };
 }
 
@@ -65,6 +83,7 @@ export function loadGateways(fallback: PaymentGateway[]): PaymentGateway[] {
 
 export function saveGateways(gateways: PaymentGateway[]) {
   localStorage.setItem(GATEWAYS_KEY, JSON.stringify(gateways));
+  window.dispatchEvent(new CustomEvent(PAYMENT_GATEWAYS_UPDATED));
 }
 
 export function loadGlobalSettings(): PaymentGlobalSettings {
@@ -79,6 +98,7 @@ export function loadGlobalSettings(): PaymentGlobalSettings {
 
 export function saveGlobalSettings(settings: PaymentGlobalSettings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new CustomEvent(PAYMENT_SETTINGS_UPDATED));
 }
 
 export function formatMinDeposit(amount: number, currency: 'VND' | 'USD') {

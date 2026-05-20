@@ -20,6 +20,7 @@ import {
   Trash2,
   Layers,
   Type,
+  Gift,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AddProviderModal, TransactionDetailModal } from './PaymentsModals';
@@ -29,6 +30,7 @@ import type {
   Environment,
   GatewayStatus,
   PaymentGateway,
+  PaymentGlobalSettings,
   Transaction,
 } from '../../types/payment';
 import { DEFAULT_MIN_DEPOSIT_USD, DEFAULT_MIN_DEPOSIT_VND } from '../../types/payment';
@@ -44,6 +46,8 @@ import {
   DEPOSIT_SYNTAX_OPTIONS,
   MOCK_DEPOSIT_USER,
 } from '../../services/depositContent';
+import { formatPromotionSummary, getDefaultTiersForCurrency } from '../../services/depositPromotion';
+import { GatewayPromotionTiersEditor } from '../../components/admin/GatewayPromotionTiersEditor';
 import {
   initialPaymentGateways,
   initialTransactions,
@@ -70,6 +74,13 @@ function StatusPill({ status }: { status: GatewayStatus }) {
   );
 }
 
+type GatewayConfigTab = 'settings' | 'promotion';
+
+const GATEWAY_CONFIG_TABS: { id: GatewayConfigTab; label: string; icon: typeof Settings }[] = [
+  { id: 'settings', label: 'API & Nạp tiền', icon: Settings },
+  { id: 'promotion', label: 'Khuyến mãi', icon: Gift },
+];
+
 function GatewayConfigModal({
   gateway,
   onClose,
@@ -82,30 +93,32 @@ function GatewayConfigModal({
   onTest: (gateway: PaymentGateway) => void;
 }) {
   const [form, setForm] = useState(gateway);
+  const [activeTab, setActiveTab] = useState<GatewayConfigTab>('settings');
   const [showSecret, setShowSecret] = useState(false);
   const [apiKey, setApiKey] = useState('sk_live_••••••••••••••••');
   const [secretKey, setSecretKey] = useState('••••••••••••••••••••');
 
   useEffect(() => {
     setForm(gateway);
+    setActiveTab('settings');
   }, [gateway]);
 
   return (
-    <motion.div
+    <div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >
-      <motion.div
+      <div
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
+        <div
           className="flex items-center justify-between border-b border-slate-100 px-6 py-4"
           style={{ background: `linear-gradient(135deg, ${gateway.color}15, white)` }}
         >
@@ -128,7 +141,7 @@ function GatewayConfigModal({
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white">
             <X className="h-5 w-5 text-slate-500" />
           </button>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/80 px-6 py-3 text-center text-[11px]">
           <div>
@@ -145,6 +158,28 @@ function GatewayConfigModal({
               <StatusPill status={form.status} />
             </div>
           </div>
+        </div>
+
+        <div className="flex gap-1 border-b border-slate-100 bg-slate-50/50 px-4 pt-2">
+          {GATEWAY_CONFIG_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 rounded-t-lg px-4 py-2.5 text-[12px] font-bold transition-colors ${
+                  isActive
+                    ? 'border border-b-0 border-slate-200 bg-white text-brand-primary shadow-sm'
+                    : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         <form
@@ -164,6 +199,8 @@ function GatewayConfigModal({
             });
           }}
         >
+          {activeTab === 'settings' && (
+          <>
           <div>
             <label className="mb-2 block text-xs font-bold uppercase text-slate-500">Môi trường</label>
             <select
@@ -241,6 +278,7 @@ function GatewayConfigModal({
               </button>
             </div>
           </div>
+
           <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
             <p className="text-xs font-bold uppercase text-slate-500">Nạp tiền (trang khách hàng)</p>
             <div className="grid grid-cols-2 gap-3">
@@ -268,6 +306,7 @@ function GatewayConfigModal({
                       minDepositCurrency: currency,
                       minDepositAmount:
                         currency === 'USD' ? DEFAULT_MIN_DEPOSIT_USD : DEFAULT_MIN_DEPOSIT_VND,
+                      depositPromotionTiers: getDefaultTiersForCurrency(currency),
                     });
                   }}
                   className={inputClass}
@@ -317,6 +356,30 @@ function GatewayConfigModal({
               />
             </div>
           </div>
+          </>
+          )}
+
+          {activeTab === 'promotion' && (
+          <div className="space-y-3">
+            <p className="rounded-lg border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-800">
+              Bậc khuyến mãi áp dụng theo loại tiền đã chọn ở tab{' '}
+              <strong>API & Nạp tiền</strong> ({form.minDepositCurrency}).
+            </p>
+            <GatewayPromotionTiersEditor
+              enabled={form.depositPromotionEnabled}
+              tiers={form.depositPromotionTiers}
+              currency={form.minDepositCurrency}
+              onEnabledChange={(depositPromotionEnabled) =>
+                setForm({ ...form, depositPromotionEnabled })
+              }
+              onTiersChange={(depositPromotionTiers) =>
+                setForm({ ...form, depositPromotionTiers })
+              }
+              embedded
+            />
+          </div>
+          )}
+
           <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
             <div>
               <p className="text-sm font-bold text-slate-800">Kích hoạt cổng</p>
@@ -356,8 +419,8 @@ function GatewayConfigModal({
             </button>
           </div>
         </form>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
@@ -390,7 +453,7 @@ function GatewayBankTable({
   onDelete: (id: string) => void;
 }) {
   return (
-    <motion.div
+    <div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm"
@@ -435,6 +498,17 @@ function GatewayBankTable({
                       <p className="text-[10px] font-semibold text-brand-primary">
                         Tối thiểu {formatMinDeposit(gateway.minDepositAmount, gateway.minDepositCurrency)}
                       </p>
+                      {gateway.depositPromotionEnabled ? (
+                        <p className="mt-0.5 text-[10px] font-medium text-violet-600">
+                          KM nạp:{' '}
+                          {formatPromotionSummary(
+                            gateway.depositPromotionTiers,
+                            gateway.minDepositCurrency,
+                          )}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-[10px] text-zinc-400">KM nạp: tắt</p>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -490,7 +564,7 @@ function GatewayBankTable({
       <p className="border-t border-slate-100 px-4 py-2.5 text-[11px] text-zinc-400">
         Bấm vào dòng hoặc nút <strong className="text-zinc-600">Cài đặt</strong> để mở popup cấu hình API
       </p>
-    </motion.div>
+    </div>
   );
 }
 
@@ -562,7 +636,7 @@ export default function PaymentsSection() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-black tracking-tight text-zinc-900">Cổng thanh toán (Payment Gateway)</h2>
@@ -599,7 +673,7 @@ export default function PaymentsSection() {
         ].map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <motion.div
+            <div
               key={stat.label}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -611,7 +685,7 @@ export default function PaymentsSection() {
               </div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{stat.label}</p>
               <p className="mt-1 text-xl font-black tabular-nums text-zinc-900">{stat.value}</p>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -903,6 +977,6 @@ export default function PaymentsSection() {
           />
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

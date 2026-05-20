@@ -1,10 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertCircle,
-  Building2,
-  CreditCard,
-  ChevronRight,
   ChevronLeft,
   Copy,
   Check,
@@ -15,18 +12,35 @@ import {
   loadGateways,
   loadGlobalSettings,
   formatMinDeposit,
+  PAYMENT_SETTINGS_UPDATED,
+  PAYMENT_GATEWAYS_UPDATED,
 } from '../services/paymentConfig';
 import {
   buildDepositTransferContent,
   buildVietQrImageUrl,
   MOCK_DEPOSIT_USER,
 } from '../services/depositContent';
+import {
+  calcDepositBonus,
+  getPromotionTierForAmount,
+} from '../services/depositPromotion';
+import {
+  formatPromotionEndLabel,
+  GLOBAL_DEPOSIT_PROMOTION_UPDATED,
+  isGlobalDepositPromotionActive,
+  loadGlobalDepositPromotion,
+  resolveGlobalPromotionTiers,
+} from '../services/globalDepositPromotion';
 import type { PaymentGateway } from '../types/payment';
 import { initialPaymentGateways } from './admin/paymentData';
+import DepositHistoryTable from '../components/wallet/DepositHistoryTable';
+import { BankSelectDropdown } from '../components/deposit/BankSelectDropdown';
+import { DepositPromotionPanel } from '../components/deposit/DepositPromotionPanel';
 
-type DepositStep = 'bank' | 'amount' | 'qr';
+type DepositStep = 'amount' | 'qr';
 
 const AMOUNT_PRESETS_VND = [10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000];
+const AMOUNT_PRESETS_USD = [10, 25, 50, 100, 200, 500];
 
 function formatAmount(amount: number, currency: 'VND' | 'USD') {
   if (currency === 'USD') {
@@ -36,16 +50,43 @@ function formatAmount(amount: number, currency: 'VND' | 'USD') {
 }
 
 export default function DepositPage() {
-  const gateways = useMemo(
-    () => loadGateways(initialPaymentGateways).filter((g) => g.enabled),
-    []
+  const [gateways, setGateways] = useState<PaymentGateway[]>(() =>
+    loadGateways(initialPaymentGateways).filter((g) => g.enabled),
   );
-  const settings = useMemo(() => loadGlobalSettings(), []);
-  const [step, setStep] = useState<DepositStep>('bank');
+  const [settings, setSettings] = useState(() => loadGlobalSettings());
+  const [globalPromo, setGlobalPromo] = useState(() => loadGlobalDepositPromotion());
+  const [step, setStep] = useState<DepositStep>('amount');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const syncSettings = () => setSettings(loadGlobalSettings());
+    const syncPromo = () => setGlobalPromo(loadGlobalDepositPromotion());
+    window.addEventListener(PAYMENT_SETTINGS_UPDATED, syncSettings);
+    window.addEventListener(GLOBAL_DEPOSIT_PROMOTION_UPDATED, syncPromo);
+    return () => {
+      window.removeEventListener(PAYMENT_SETTINGS_UPDATED, syncSettings);
+      window.removeEventListener(GLOBAL_DEPOSIT_PROMOTION_UPDATED, syncPromo);
+    };
+  }, []);
+
+  const reloadGateways = () => {
+    const loaded = loadGateways(initialPaymentGateways).filter((g) => g.enabled);
+    setGateways(loaded);
+    setSelectedId((prev) => {
+      if (prev && loaded.some((g) => g.id === prev)) return prev;
+      return loaded[0]?.id ?? null;
+    });
+  };
+
+  useEffect(() => {
+    reloadGateways();
+    const onGatewaysUpdate = () => reloadGateways();
+    window.addEventListener(PAYMENT_GATEWAYS_UPDATED, onGatewaysUpdate);
+    return () => window.removeEventListener(PAYMENT_GATEWAYS_UPDATED, onGatewaysUpdate);
+  }, []);
 
   const selected = gateways.find((g) => g.id === selectedId) ?? null;
   const transferContent = buildDepositTransferContent(settings, MOCK_DEPOSIT_USER);
@@ -55,6 +96,24 @@ export default function DepositPage() {
   const minAmount = selected?.minDepositAmount ?? 1000;
   const currency = selected?.minDepositCurrency ?? 'VND';
   const amountValid = finalAmount >= minAmount;
+
+  const globalPromoActive = isGlobalDepositPromotionActive(globalPromo);
+  const globalTiers = globalPromoActive
+    ? resolveGlobalPromotionTiers(globalPromo, currency)
+    : [];
+  const useGlobalPromo = globalTiers.length > 0;
+
+  const promoEnabled = useGlobalPromo
+    ? true
+    : (selected?.depositPromotionEnabled ?? false);
+  const promoTiers = useGlobalPromo ? globalTiers : (selected?.depositPromotionTiers ?? []);
+  const promoCampaignName = useGlobalPromo ? globalPromo.name : undefined;
+  const promoEndsAtLabel = useGlobalPromo ? formatPromotionEndLabel(globalPromo.endsAt) : null;
+  const activePromo =
+    promoEnabled && finalAmount > 0
+      ? getPromotionTierForAmount(finalAmount, currency, promoTiers)
+      : null;
+  const bonusAmount = activePromo ? calcDepositBonus(finalAmount, activePromo.bonusPercent) : 0;
 
   const vietQrUrl =
     selected && amountValid
@@ -85,207 +144,238 @@ export default function DepositPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const amountPresets = useMemo(
+    () => (currency === 'USD' ? AMOUNT_PRESETS_USD : AMOUNT_PRESETS_VND),
+    [currency],
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="mx-auto max-w-lg px-4 py-8 sm:px-6"
+      className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6"
     >
-      <div className="mb-6">
-        <h1 className="text-2xl font-black tracking-tight text-zinc-900">Nạp tiền vào ví</h1>
-        <p className="mt-1 text-[13px] font-medium text-zinc-500">
-          {step === 'bank' && 'Bước 1: Chọn ngân hàng'}
-          {step === 'amount' && 'Bước 2: Chọn số tiền nạp'}
-          {step === 'qr' && 'Bước 3: Quét mã QR để chuyển khoản'}
-        </p>
-        <StepIndicator step={step} />
-      </div>
-
-      {settings.globalDepositNote.trim() ? (
-        <div className="mb-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Lưu ý nạp tiền</p>
-            <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-amber-900/90">
-              {settings.globalDepositNote}
+      <div className="mb-8 grid gap-8 xl:grid-cols-[minmax(0,440px)_1fr] xl:items-start">
+        <div>
+          <div className="mb-6">
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900">Nạp tiền vào ví</h1>
+            <p className="mt-1 text-[13px] font-medium text-zinc-500">
+              {step === 'amount' && 'Chọn ngân hàng, số tiền và xem khuyến mãi'}
+              {step === 'qr' && 'Quét mã QR để chuyển khoản'}
             </p>
+            <StepIndicator step={step} />
           </div>
-        </div>
-      ) : null}
 
-      <AnimatePresence mode="wait">
-        {step === 'bank' && (
-          <motion.div
-            key="bank"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            className="space-y-3"
-          >
-            {gateways.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-500">
-                Chưa có phương thức nạp tiền.
-              </p>
-            ) : (
-              gateways.map((gateway) => (
-                <GatewayOption
-                  key={gateway.id}
-                  gateway={gateway}
-                  onSelect={() => handleSelectBank(gateway.id)}
-                />
-              ))
-            )}
-          </motion.div>
-        )}
-
-        {step === 'amount' && selected && (
-          <motion.div
-            key="amount"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            className="space-y-4"
-          >
-            <SelectedBankSummary gateway={selected} onBack={() => setStep('bank')} />
-
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-              <p className="mb-3 text-sm font-bold text-zinc-900">Chọn số tiền</p>
-              <p className="mb-4 text-[12px] text-zinc-500">
-                Tối thiểu:{' '}
-                <strong className="text-brand-primary">{formatMinDeposit(minAmount, currency)}</strong>
-              </p>
-
-              {currency === 'VND' ? (
-                <div className="mb-4 grid grid-cols-3 gap-2">
-                  {AMOUNT_PRESETS_VND.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => {
-                        setAmount(preset);
-                        setCustomAmount('');
-                      }}
-                      className={`rounded-xl border py-2.5 text-[12px] font-bold transition-colors ${
-                        amount === preset
-                          ? 'border-brand-primary bg-emerald-50 text-brand-primary'
-                          : 'border-zinc-200 text-zinc-700 hover:border-emerald-200'
-                      }`}
-                    >
-                      {formatAmount(preset, 'VND')}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              <label className="mb-1.5 block text-[11px] font-bold uppercase text-zinc-400">
-                Hoặc nhập số tiền
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={customAmount}
-                onChange={(e) => {
-                  setCustomAmount(e.target.value);
-                  setAmount(null);
-                }}
-                placeholder={currency === 'VND' ? 'VD: 100000' : 'VD: 10'}
-                className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold text-zinc-800 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
-              />
-
-              {!amountValid && finalAmount > 0 ? (
-                <p className="mt-2 text-[12px] font-medium text-red-600">
-                  Số tiền phải từ {formatMinDeposit(minAmount, currency)} trở lên.
+          {settings.globalDepositNote.trim() ? (
+            <div className="mb-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Lưu ý nạp tiền</p>
+                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-amber-900/90">
+                  {settings.globalDepositNote}
                 </p>
-              ) : null}
-
-              <button
-                type="button"
-                disabled={!amountValid}
-                onClick={handleConfirmAmount}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary py-3 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Tạo mã QR nạp tiền
-                <QrCode className="h-4 w-4" />
-              </button>
+              </div>
             </div>
-          </motion.div>
-        )}
+          ) : null}
 
-        {step === 'qr' && selected && amountValid && (
-          <motion.div
-            key="qr"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            className="space-y-4"
-          >
-            <SelectedBankSummary gateway={selected} onBack={() => setStep('amount')} />
+          <AnimatePresence mode="wait">
+            {step === 'amount' && (
+              <motion.div
+                key="amount"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                className="space-y-4"
+              >
+                <BankSelectDropdown
+                  gateways={gateways}
+                  selectedId={selectedId}
+                  onSelect={handleSelectBank}
+                />
 
-            <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-              <div className="mb-4 text-center">
-                <p className="text-[11px] font-bold uppercase text-zinc-400">Số tiền chuyển</p>
-                <p className="text-2xl font-black tabular-nums text-brand-primary">
-                  {formatAmount(finalAmount, currency)}
-                </p>
-              </div>
-
-              <div className="flex justify-center">
-                {vietQrUrl ? (
-                  <img
-                    src={vietQrUrl}
-                    alt="Mã QR VietQR"
-                    className="h-56 w-56 rounded-xl border border-zinc-100 object-contain"
-                  />
-                ) : (
-                  <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                    <QRCodeSVG value={transferContent} size={200} level="M" />
-                    <p className="mt-2 max-w-[200px] text-center text-[10px] text-zinc-400">
-                      QR dự phòng (chưa cấu hình STK VietQR)
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-emerald-700">Nội dung chuyển khoản</p>
-                  <p className="mt-1 font-mono text-sm font-bold tracking-wide text-zinc-900">{transferContent}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyContent}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white py-2 text-[12px] font-bold text-emerald-700 hover:bg-emerald-50"
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Đã sao chép' : 'Sao chép nội dung'}
-                </button>
-                {selected.accountNumber ? (
-                  <div className="border-t border-emerald-100 pt-3 text-[12px] text-zinc-600">
-                    <p>
-                      <span className="font-bold">STK:</span> {selected.accountNumber}
-                    </p>
-                    <p>
-                      <span className="font-bold">Chủ TK:</span> {selected.accountHolder}
-                    </p>
+                {selected?.depositNote.trim() ? (
+                  <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-[12px] leading-relaxed text-sky-900">
+                    {selected.depositNote}
                   </div>
                 ) : null}
-              </div>
 
-              <p className="mt-4 text-center text-[11px] text-zinc-400">
-                Chuyển đúng số tiền và nội dung. Hệ thống tự cộng tiền sau 1–15 phút.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {selected ? (
+                  <>
+                    <DepositPromotionPanel
+                      enabled={promoEnabled}
+                      tiers={promoTiers}
+                      currency={currency}
+                      amount={finalAmount}
+                      campaignName={promoCampaignName}
+                      endsAtLabel={promoEndsAtLabel}
+                    />
+
+                    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                      <p className="mb-3 text-sm font-bold text-zinc-900">Chọn số tiền</p>
+                      <p className="mb-4 text-[12px] text-zinc-500">
+                        Tối thiểu:{' '}
+                        <strong className="text-brand-primary">
+                          {formatMinDeposit(minAmount, currency)}
+                        </strong>
+                      </p>
+
+                      <div className="mb-4 grid grid-cols-3 gap-2">
+                        {amountPresets.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setAmount(preset);
+                              setCustomAmount('');
+                            }}
+                            className={`rounded-xl border py-2.5 text-[12px] font-bold transition-colors ${
+                              amount === preset
+                                ? 'border-brand-primary bg-emerald-50 text-brand-primary'
+                                : 'border-zinc-200 text-zinc-700 hover:border-emerald-200'
+                            }`}
+                          >
+                            {formatAmount(preset, currency)}
+                          </button>
+                        ))}
+                      </div>
+
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase text-zinc-400">
+                        Hoặc nhập số tiền
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={customAmount}
+                        onChange={(e) => {
+                          setCustomAmount(e.target.value);
+                          setAmount(null);
+                        }}
+                        placeholder={currency === 'VND' ? 'VD: 100000' : 'VD: 50'}
+                        className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold text-zinc-800 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
+                      />
+
+                      {!amountValid && finalAmount > 0 ? (
+                        <p className="mt-2 text-[12px] font-medium text-red-600">
+                          Số tiền phải từ {formatMinDeposit(minAmount, currency)} trở lên.
+                        </p>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        disabled={!amountValid}
+                        onClick={handleConfirmAmount}
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary py-3 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Tạo mã QR nạp tiền
+                        <QrCode className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </motion.div>
+            )}
+
+            {step === 'qr' && selected && amountValid && (
+              <motion.div
+                key="qr"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                className="space-y-4"
+              >
+                <BankSelectDropdown
+                  gateways={gateways}
+                  selectedId={selectedId}
+                  onSelect={(id) => {
+                    handleSelectBank(id);
+                  }}
+                />
+
+                <motion.div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                  <div className="mb-4 text-center">
+                    <p className="text-[11px] font-bold uppercase text-zinc-400">Số tiền chuyển</p>
+                    <p className="text-2xl font-black tabular-nums text-brand-primary">
+                      {formatAmount(finalAmount, currency)}
+                    </p>
+                    {activePromo ? (
+                      <p className="mt-1 text-[12px] font-bold text-violet-700">
+                        Khuyến mãi +{activePromo.bonusPercent}% → nhận thêm{' '}
+                        {formatMinDeposit(bonusAmount, currency)}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex justify-center">
+                    {vietQrUrl ? (
+                      <img
+                        src={vietQrUrl}
+                        alt="Mã QR VietQR"
+                        className="h-56 w-56 rounded-xl border border-zinc-100 object-contain"
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-zinc-200 bg-white p-4">
+                        <QRCodeSVG value={transferContent} size={200} level="M" />
+                        <p className="mt-2 max-w-[200px] text-center text-[10px] text-zinc-400">
+                          QR dự phòng (chưa cấu hình STK VietQR)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-5 space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-emerald-700">Nội dung chuyển khoản</p>
+                      <p className="mt-1 font-mono text-sm font-bold tracking-wide text-zinc-900">{transferContent}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyContent}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white py-2 text-[12px] font-bold text-emerald-700 hover:bg-emerald-50"
+                    >
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copied ? 'Đã sao chép' : 'Sao chép nội dung'}
+                    </button>
+                    {selected.accountNumber ? (
+                      <div className="border-t border-emerald-100 pt-3 text-[12px] text-zinc-600">
+                        <p>
+                          <span className="font-bold">STK:</span> {selected.accountNumber}
+                        </p>
+                        <p>
+                          <span className="font-bold">Chủ TK:</span> {selected.accountHolder}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep('amount')}
+                      className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-zinc-200 py-2.5 text-[12px] font-bold text-zinc-600 hover:bg-zinc-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Sửa số tiền
+                    </button>
+                  </div>
+
+                  <p className="mt-4 text-center text-[11px] text-zinc-400">
+                    Chuyển đúng số tiền và nội dung. Hệ thống tự cộng tiền sau 1–15 phút.
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <DepositHistoryTable />
+      </div>
     </motion.div>
   );
 }
 
 function StepIndicator({ step }: { step: DepositStep }) {
   const steps: { id: DepositStep; label: string }[] = [
-    { id: 'bank', label: 'Ngân hàng' },
-    { id: 'amount', label: 'Số tiền' },
+    { id: 'amount', label: 'Nạp tiền' },
     { id: 'qr', label: 'QR' },
   ];
   const current = steps.findIndex((s) => s.id === step);
@@ -306,54 +396,3 @@ function StepIndicator({ step }: { step: DepositStep }) {
   );
 }
 
-function SelectedBankSummary({ gateway, onBack }: { gateway: PaymentGateway; onBack: () => void }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="rounded-lg p-2 hover:bg-zinc-100"
-        aria-label="Quay lại"
-      >
-        <ChevronLeft className="h-5 w-5 text-zinc-600" />
-      </button>
-      <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-white"
-        style={{ backgroundColor: gateway.color }}
-      >
-        {gateway.bankCode}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-zinc-900">{gateway.shortName}</p>
-        <p className="truncate text-[11px] text-zinc-500">{gateway.bankName}</p>
-      </div>
-    </div>
-  );
-}
-
-function GatewayOption({ gateway, onSelect }: { gateway: PaymentGateway; onSelect: () => void }) {
-  const Icon = gateway.providerType === 'third_party' ? CreditCard : Building2;
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="flex w-full items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4 text-left transition-all hover:border-emerald-200 hover:bg-emerald-50/30"
-    >
-      <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[10px] font-black text-white"
-        style={{ backgroundColor: gateway.color }}
-      >
-        {gateway.providerType === 'third_party' ? <Icon className="h-5 w-5" /> : gateway.bankCode}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-zinc-900">{gateway.shortName}</p>
-        <p className="truncate text-[12px] text-zinc-500">{gateway.bankName}</p>
-        <p className="mt-0.5 text-[11px] font-semibold text-brand-primary">
-          Tối thiểu {formatMinDeposit(gateway.minDepositAmount, gateway.minDepositCurrency)}
-        </p>
-      </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-zinc-300" />
-    </button>
-  );
-}

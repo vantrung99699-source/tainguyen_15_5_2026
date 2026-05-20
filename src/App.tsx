@@ -1,25 +1,106 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import HeroBanner from './components/HeroBanner';
 import CategoryFilter from './components/CategoryFilter';
 import ProductCard from './components/ProductCard';
 import OrderHistory from './pages/OrderHistory';
+import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import DepositPage from './pages/DepositPage';
+import ExtraPageView from './pages/ExtraPageView';
+import {
+  findExtraPageBySlug,
+  parseExtraPageSlugFromPath,
+  pushExtraPagePath,
+  pushHomePath,
+} from './services/extraPagesConfig';
+import { useExtraPages } from './hooks/useExtraPages';
 import AdminPage, { type AppPage } from './pages/admin/AdminPage';
-import { PRODUCTS, CATEGORIES } from './constants';
+import { CATEGORIES } from './constants';
+import type { Product } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { TrendingUp, Sparkles } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import { useSiteDesign } from './hooks/useSiteDesign';
+import { getProductGridClass, resolveCardStyle } from './utils/productLayout';
+import { loadStorefrontProducts } from './services/storefrontCatalog';
+import { SERVICE_SHOPS_UPDATED } from './services/serviceShopConfig';
+import { PreorderCheckoutModal } from './components/preorder/PreorderCheckoutModal';
+import { BuyNowModal } from './components/storefront/BuyNowModal';
+import { PreorderStockBlockedModal } from './components/storefront/PreorderStockBlockedModal';
 
 export default function App() {
+  const design = useSiteDesign();
+  const cardStyle = resolveCardStyle(design.productCardStyle, design.productGridLayout);
   const [activeCategory, setActiveCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(12);
   const [currentPage, setCurrentPage] = useState<AppPage>('home');
+  const [products, setProducts] = useState<Product[]>(() => loadStorefrontProducts());
+  const [buyProduct, setBuyProduct] = useState<Product | null>(null);
+  const [preorderProduct, setPreorderProduct] = useState<Product | null>(null);
+  const [preorderBlockedProduct, setPreorderBlockedProduct] = useState<Product | null>(null);
+  const [extraPageSlug, setExtraPageSlug] = useState<string | null>(() => parseExtraPageSlugFromPath());
+  const extraPages = useExtraPages();
+  const activeExtraPage = extraPageSlug ? findExtraPageBySlug(extraPages, extraPageSlug) : null;
+
+  const openExtraPage = useCallback((slug: string) => {
+    setExtraPageSlug(slug);
+    setCurrentPage('home');
+    pushExtraPagePath(slug);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const closeExtraPage = useCallback(() => {
+    setExtraPageSlug(null);
+    pushHomePath();
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const slug = parseExtraPageSlugFromPath();
+      setExtraPageSlug(slug);
+      if (slug) setCurrentPage('home');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setProducts(loadStorefrontProducts());
+    window.addEventListener(SERVICE_SHOPS_UPDATED, sync);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'taphoammo_service_shops') sync();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(SERVICE_SHOPS_UPDATED, sync);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
+  const handleBuy = useCallback((product: Product) => {
+    if (product.stock <= 0) {
+      alert('Kho đang hết — vui lòng dùng Đặt trước nếu được hỗ trợ.');
+      return;
+    }
+    setBuyProduct(product);
+  }, []);
+
+  const handlePreorder = useCallback((product: Product) => {
+    if (product.stock > 0) {
+      setPreorderBlockedProduct(product);
+      return;
+    }
+    setPreorderProduct(product);
+  }, []);
 
   const filteredProducts = useMemo(() => {
-    if (activeCategory === 'all') return PRODUCTS;
-    return PRODUCTS.filter(p => p.category === activeCategory);
-  }, [activeCategory]);
+    if (activeCategory === 'all') return products;
+    return products.filter(
+      (p) =>
+        p.category === activeCategory ||
+        p.category.toLowerCase() === activeCategory.toLowerCase(),
+    );
+  }, [activeCategory, products]);
 
   const displayedProducts = useMemo(() => {
     return filteredProducts.slice(0, visibleCount);
@@ -46,18 +127,30 @@ export default function App() {
 
   const GroupedProducts = useMemo(() => {
     if (activeCategory !== 'all') return null;
-    
-    return CATEGORIES.filter(cat => cat.id !== 'all').map(category => {
-      const categoryProducts = PRODUCTS.filter(p => p.category === category.id);
-      if (categoryProducts.length === 0) return null;
 
-      const IconComp = (LucideIcons as any)[category.icon] || Sparkles;
+    const sectionCardStyle = design.categorySectionLayout === 'list' ? 'list' : cardStyle;
+    const sectionGridClass =
+      design.categorySectionLayout === 'list'
+        ? 'flex flex-col gap-4'
+        : getProductGridClass(design.productGridLayout === 'list' ? 'list' : design.productGridLayout);
+
+    const categoryKeys = [...new Set(products.map((p) => p.category))];
+
+    return categoryKeys.map((catKey) => {
+      const categoryProducts = products.filter((p) => p.category === catKey);
+      if (categoryProducts.length === 0) return null;
+      const category = CATEGORIES.find(
+        (c) => c.id === catKey || c.name.toLowerCase() === catKey.toLowerCase(),
+      );
+      const categoryName = category?.name ?? catKey;
+
+      const IconComp = category ? (LucideIcons as any)[category.icon] || Sparkles : Sparkles;
 
       return (
-        <div key={category.id} className="mb-20">
+        <div key={catKey} className="mb-20">
           <div 
             className="flex w-full items-center gap-4 px-6 py-4 rounded-xl shadow-xl shadow-slate-200/40 border border-slate-100 border-l-[6px] border-l-brand-primary mb-6 relative z-10 overflow-hidden group bg-white cursor-pointer hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300"
-            onClick={() => handleCategoryChange(category.id)}
+            onClick={() => handleCategoryChange(category?.id ?? catKey)}
           >
             <div 
               className="p-3 rounded-xl bg-emerald-50 transition-transform duration-500 group-hover:scale-110"
@@ -68,7 +161,7 @@ export default function App() {
             </div>
             <div className="flex flex-col">
               <h3 className="text-xl font-black text-brand-primary tracking-tighter uppercase italic leading-none">
-                Danh mục <span className="text-brand-primary">{category.name}</span>
+                Danh mục <span className="text-brand-primary">{categoryName}</span>
               </h3>
               <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Nhấp để xem tất cả</span>
             </div>
@@ -76,41 +169,80 @@ export default function App() {
             {/* Subtle pattern for the 'block' feel */}
             <div className="absolute right-0 top-0 bottom-0 w-48 bg-gradient-to-l from-emerald-50 to-transparent pointer-events-none" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-            {categoryProducts.slice(0, 4).map((product, index) => (
-              <ProductCard key={product.id} product={product} index={index} />
-            ))}
+          <div className={sectionGridClass}>
+            {categoryProducts
+              .slice(0, design.categorySectionLayout === 'list' ? 6 : 4)
+              .map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  index={index}
+                  variant={sectionCardStyle}
+                  onBuy={handleBuy}
+                  onPreorder={handlePreorder}
+                />
+              ))}
           </div>
         </div>
       );
     });
-  }, [activeCategory]);
+  }, [activeCategory, cardStyle, design.categorySectionLayout, design.productGridLayout, products, handleBuy, handlePreorder]);
 
   if (currentPage === 'admin') {
     return <AdminPage onNavigateHome={() => setCurrentPage('home')} />;
   }
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd]">
-      <Navbar onNavigate={setCurrentPage} />
-      
+    <div className="min-h-screen" style={{ backgroundColor: design.pageBg }}>
+      <Navbar
+        onNavigate={(page) => {
+          setExtraPageSlug(null);
+          pushHomePath();
+          setCurrentPage(page);
+        }}
+        onOpenExtraPage={openExtraPage}
+      />
+
       <main className="pb-32">
-        {currentPage === 'order-history' ? (
+        {extraPageSlug && !activeExtraPage ? (
+          <motion.div className="mx-auto max-w-2xl px-6 py-20 text-center">
+            <p className="text-lg font-black text-slate-800">Không tìm thấy trang</p>
+            <button
+              type="button"
+              onClick={closeExtraPage}
+              className="mt-4 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-bold text-white"
+            >
+              Về trang chủ
+            </button>
+          </motion.div>
+        ) : activeExtraPage ? (
+          <ExtraPageView page={activeExtraPage} onBack={closeExtraPage} />
+        ) : currentPage === 'order-history' ? (
           <OrderHistory />
+        ) : currentPage === 'transaction-history' ? (
+          <TransactionHistoryPage onBack={() => setCurrentPage('home')} />
         ) : currentPage === 'deposit' ? (
           <DepositPage />
         ) : (
           <>
             <HeroBanner />
         
-        <div className="max-w-7xl mx-auto px-6 mt-16 mb-12">
-          <CategoryFilter 
-            activeCategory={activeCategory} 
-            setActiveCategory={handleCategoryChange} 
-          />
-        </div>
-
-<section className="max-w-7xl mx-auto px-6 mt-20">
+            <div
+              className={`mx-auto max-w-7xl px-6 mt-16 mb-12 ${
+                design.categoryFilterLayout === 'sidebar' ? 'flex flex-col gap-6 lg:flex-row lg:items-start' : ''
+              }`}
+            >
+              <CategoryFilter
+                activeCategory={activeCategory}
+                setActiveCategory={handleCategoryChange}
+                layout={design.categoryFilterLayout}
+              />
+              <motion.div className={design.categoryFilterLayout === 'sidebar' ? 'min-w-0 flex-1' : 'w-full'}>
+                <section
+                  className={`mx-auto max-w-7xl px-6 mt-20 ${
+                    design.categoryFilterLayout === 'sidebar' ? 'mt-8 max-w-none px-0' : ''
+                  }`}
+                >
 
           {activeCategory === 'all' ? (
             <div className="space-y-6">
@@ -118,13 +250,20 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-                <AnimatePresence mode="popLayout">
+              <motion.div className={getProductGridClass(design.productGridLayout)}>
+                <AnimatePresence>
                   {displayedProducts.map((product, index) => (
-                    <ProductCard key={product.id} product={product} index={index % 12} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      index={index % 12}
+                      variant={cardStyle}
+                      onBuy={handleBuy}
+                      onPreorder={handlePreorder}
+                    />
                   ))}
                 </AnimatePresence>
-              </div>
+              </motion.div>
               
               {visibleCount < filteredProducts.length && (
                 <div className="mt-20 flex justify-center">
@@ -163,7 +302,9 @@ export default function App() {
               </button>
             </motion.div>
           )}
-        </section>
+                </section>
+              </motion.div>
+            </div>
           </>
         )}
       </main>
@@ -186,6 +327,47 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      <AnimatePresence>
+        {preorderBlockedProduct ? (
+          <PreorderStockBlockedModal
+            key={`blocked-${preorderBlockedProduct.id}`}
+            product={preorderBlockedProduct}
+            onClose={() => setPreorderBlockedProduct(null)}
+            onBuyNow={() => {
+              const p = preorderBlockedProduct;
+              setPreorderBlockedProduct(null);
+              setBuyProduct(p);
+            }}
+          />
+        ) : null}
+        {buyProduct ? (
+          <BuyNowModal
+            key={`buy-${buyProduct.id}`}
+            product={buyProduct}
+            onClose={() => setBuyProduct(null)}
+            onSuccess={(contents) => {
+              setProducts(loadStorefrontProducts());
+              alert(
+                `Mua thành công!\n\nNội dung giao hàng:\n${contents.join('\n---\n')}`,
+              );
+              setBuyProduct(null);
+            }}
+          />
+        ) : null}
+        {preorderProduct ? (
+          <PreorderCheckoutModal
+            key={`pre-${preorderProduct.id}`}
+            product={preorderProduct}
+            onClose={() => setPreorderProduct(null)}
+            onSuccess={() => {
+              setProducts(loadStorefrontProducts());
+              alert('Đặt trước thành công! Admin sẽ xác nhận trong thời gian chờ.');
+              setPreorderProduct(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -17,38 +17,165 @@ import {
   Home,
   LogOut,
   LucideIcon,
+  Settings,
+  Palette,
+  Megaphone,
+  Ticket,
+  FileStack,
+  Coins,
+  Languages,
+  Send,
+  Mail,
+  Bell,
+  PanelTop,
+  History,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import CreateServiceSection from './CreateServiceSection';
 import PaymentsSection from './PaymentsSection';
+import UsersSection from './UsersSection';
+import { HeaderSettingsSection } from './GeneralSettingsSection';
+import { DesignSection } from './DesignSection';
+import {
+  PromotionsSection,
+  PromoCodesSection,
+  CurrencySection,
+  LanguageSection,
+} from './AdminConfigSections';
+import { ExtraPagesSection } from './ExtraPagesSection';
+import {
+  TelegramNotificationSection,
+  EmailNotificationSection,
+  UserNotificationSection,
+} from './AdminNotificationSections';
+import { AdminHistorySection } from './AdminHistorySection';
 
 export type AdminSection =
   | 'statistics'
   | 'users'
   | 'create-service'
   | 'create-product'
-  | 'payments';
+  | 'payments'
+  | 'settings-header'
+  | 'design'
+  | 'promotions'
+  | 'promo-codes'
+  | 'extra-pages'
+  | 'currency'
+  | 'language'
+  | 'notify-telegram'
+  | 'notify-email'
+  | 'notify-user'
+  | 'history';
 
-export type AppPage = 'home' | 'order-history' | 'deposit' | 'admin';
+export type AppPage = 'home' | 'order-history' | 'transaction-history' | 'deposit' | 'admin';
 
 interface AdminPageProps {
   onNavigateHome: () => void;
 }
 
-const menuItems: { id: AdminSection; label: string; icon: LucideIcon }[] = [
-  { id: 'statistics', label: 'Thống kê', icon: LayoutDashboard },
-  { id: 'users', label: 'Quản lý người dùng', icon: Users },
-  { id: 'create-service', label: 'Tạo dịch vụ', icon: Wrench },
-  { id: 'create-product', label: 'Tạo sản phẩm', icon: Package },
-  { id: 'payments', label: 'Quản lý thanh toán', icon: CreditCard },
+const GENERAL_SETTINGS_GROUP_ID = 'general-settings';
+
+interface AdminMenuLeaf {
+  id: AdminSection;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface AdminMenuGroup {
+  groupId: string;
+  label: string;
+  icon: LucideIcon;
+  children: AdminMenuLeaf[];
+}
+
+type AdminMenuItem = AdminMenuLeaf | AdminMenuGroup;
+
+function isMenuGroup(item: AdminMenuItem): item is AdminMenuGroup {
+  return 'groupId' in item;
+}
+
+const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
+  {
+    title: 'Menu',
+    items: [
+      { id: 'statistics', label: 'Thống kê', icon: LayoutDashboard },
+      { id: 'users', label: 'Quản lý người dùng', icon: Users },
+      { id: 'create-service', label: 'Tạo dịch vụ', icon: Wrench },
+      { id: 'create-product', label: 'Tạo sản phẩm', icon: Package },
+      { id: 'payments', label: 'Quản lý thanh toán', icon: CreditCard },
+      { id: 'history', label: 'Lịch sử', icon: History },
+    ],
+  },
+  {
+    title: 'Cấu hình',
+    items: [
+      {
+        groupId: GENERAL_SETTINGS_GROUP_ID,
+        label: 'Cài đặt chung',
+        icon: Settings,
+        children: [{ id: 'settings-header', label: 'Cài header', icon: PanelTop }],
+      },
+      { id: 'design', label: 'Thiết kế', icon: Palette },
+      { id: 'promotions', label: 'Khuyến mãi', icon: Megaphone },
+      { id: 'promo-codes', label: 'Mã khuyến mãi', icon: Ticket },
+      { id: 'extra-pages', label: 'Trang bổ sung', icon: FileStack },
+      { id: 'currency', label: 'Tiền tệ', icon: Coins },
+      { id: 'language', label: 'Ngôn ngữ', icon: Languages },
+    ],
+  },
+  {
+    title: 'Thông báo',
+    items: [
+      { id: 'notify-telegram', label: 'Thông báo Telegram', icon: Send },
+      { id: 'notify-email', label: 'Thông báo Email', icon: Mail },
+      { id: 'notify-user', label: 'Thông báo người dùng', icon: Bell },
+    ],
+  },
 ];
+
+function flattenMenuLeaves(items: AdminMenuItem[]): AdminMenuLeaf[] {
+  return items.flatMap((item) => (isMenuGroup(item) ? item.children : [item]));
+}
+
+function resolveNav(section: AdminSection) {
+  for (const group of menuGroups) {
+    for (const item of group.items) {
+      if (isMenuGroup(item)) {
+        const child = item.children.find((c) => c.id === section);
+        if (child) return { parent: item, leaf: child };
+      } else if (item.id === section) {
+        return { parent: null, leaf: item };
+      }
+    }
+  }
+  return null;
+}
 
 export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>('statistics');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set([GENERAL_SETTINGS_GROUP_ID]),
+  );
 
-  const activeItem = menuItems.find((item) => item.id === activeSection);
-  const ActiveIcon = activeItem?.icon;
+  const nav = resolveNav(activeSection);
+  const ActiveIcon = nav?.leaf.icon;
+
+  useEffect(() => {
+    if (activeSection === 'settings-header') {
+      setExpandedGroups((prev) => new Set(prev).add(GENERAL_SETTINGS_GROUP_ID));
+    }
+  }, [activeSection]);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden bg-zinc-50">
@@ -99,47 +226,127 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-              Menu
-            </p>
-            <ul className="space-y-0.5">
-              {menuItems.map((item, index) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <li key={item.id}>
-                    <motion.button
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.03 }}
-                      onClick={() => {
-                        setActiveSection(item.id);
-                        setSidebarOpen(false);
-                      }}
-                      className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold transition-all duration-200 ${
-                        isActive
-                          ? 'bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-100'
-                          : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
-                      }`}
-                    >
-                      {isActive && (
-                        <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand-primary" />
-                      )}
-                      <span
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-brand-primary text-white shadow-md shadow-emerald-200/50'
-                            : 'bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="truncate">{item.label}</span>
-                    </motion.button>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="space-y-4">
+              {menuGroups.map((group) => (
+                <div key={group.title}>
+                  <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                    {group.title}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {group.items.map((item) => {
+                      if (isMenuGroup(item)) {
+                        const Icon = item.icon;
+                        const isExpanded = expandedGroups.has(item.groupId);
+                        const childActive = item.children.some((c) => c.id === activeSection);
+                        return (
+                          <li key={item.groupId}>
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(item.groupId)}
+                              className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold transition-all duration-200 ${
+                                childActive
+                                  ? 'bg-emerald-50/80 text-emerald-900 ring-1 ring-emerald-100'
+                                  : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                              }`}
+                            >
+                              <span
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                  childActive
+                                    ? 'bg-brand-primary text-white shadow-md shadow-emerald-200/50'
+                                    : 'bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
+                                }`}
+                              >
+                                <Icon className="h-4 w-4" />
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              />
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {isExpanded && (
+                                <motion.ul
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="mt-0.5 ml-4 space-y-0.5 overflow-hidden border-l border-zinc-200 pl-2"
+                                >
+                                  {item.children.map((child) => {
+                                    const ChildIcon = child.icon;
+                                    const isActive = activeSection === child.id;
+                                    return (
+                                      <li key={child.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveSection(child.id);
+                                            setSidebarOpen(false);
+                                          }}
+                                          className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] font-semibold transition-all ${
+                                            isActive
+                                              ? 'bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-100'
+                                              : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800'
+                                          }`}
+                                        >
+                                          <span
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+                                              isActive
+                                                ? 'bg-brand-primary text-white'
+                                                : 'bg-zinc-100 text-zinc-400 group-hover:bg-zinc-200'
+                                            }`}
+                                          >
+                                            <ChildIcon className="h-3.5 w-3.5" />
+                                          </span>
+                                          <span className="truncate">{child.label}</span>
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                </motion.ul>
+                              )}
+                            </AnimatePresence>
+                          </li>
+                        );
+                      }
+
+                      const Icon = item.icon;
+                      const isActive = activeSection === item.id;
+                      return (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSection(item.id);
+                              setSidebarOpen(false);
+                            }}
+                            className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold transition-all duration-200 ${
+                              isActive
+                                ? 'bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-100'
+                                : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                            }`}
+                          >
+                            {isActive && (
+                              <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand-primary" />
+                            )}
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                isActive
+                                  ? 'bg-brand-primary text-white shadow-md shadow-emerald-200/50'
+                                  : 'bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700'
+                              }`}
+                            >
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="truncate">{item.label}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </nav>
 
           <div className="space-y-2 border-t border-zinc-100 p-3">
@@ -183,13 +390,19 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <div className="mb-0.5 flex items-center gap-2 text-[11px] font-medium text-zinc-400">
+                  <motion.div className="mb-0.5 flex items-center gap-2 text-[11px] font-medium text-zinc-400">
                     <span>Admin</span>
+                    {nav?.parent && (
+                      <>
+                        <span className="text-zinc-300">/</span>
+                        <span className="truncate text-zinc-500">{nav.parent.label}</span>
+                      </>
+                    )}
                     <span className="text-zinc-300">/</span>
-                    <span className="truncate text-zinc-600">{activeItem?.label}</span>
-                  </div>
+                    <span className="truncate text-zinc-600">{nav?.leaf.label}</span>
+                  </motion.div>
                   <h1 className="truncate text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
-                    {activeItem?.label}
+                    {nav?.leaf.label}
                   </h1>
                 </div>
               </motion.div>
@@ -212,6 +425,17 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                   {activeSection === 'create-service' && <CreateServiceSection />}
                   {activeSection === 'create-product' && <CreateProductSection />}
                   {activeSection === 'payments' && <PaymentsSection />}
+                  {activeSection === 'settings-header' && <HeaderSettingsSection />}
+                  {activeSection === 'design' && <DesignSection />}
+                  {activeSection === 'promotions' && <PromotionsSection />}
+                  {activeSection === 'promo-codes' && <PromoCodesSection />}
+                  {activeSection === 'extra-pages' && <ExtraPagesSection />}
+                  {activeSection === 'currency' && <CurrencySection />}
+                  {activeSection === 'language' && <LanguageSection />}
+                  {activeSection === 'notify-telegram' && <TelegramNotificationSection />}
+                  {activeSection === 'notify-email' && <EmailNotificationSection />}
+                  {activeSection === 'notify-user' && <UserNotificationSection />}
+                  {activeSection === 'history' && <AdminHistorySection />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -419,78 +643,6 @@ function StatisticsSection() {
         </h3>
         <div className="h-48 flex items-center justify-center bg-slate-50 rounded-xl border border-dashed border-gray-300">
           <p className="text-[13px] font-bold text-slate-400">Biểu đồ thống kê sẽ được cập nhật tại đây</p>
-        </div>
-      </AdminCard>
-    </motion.div>
-  );
-}
-
-function UsersSection() {
-  const users = [
-    { id: 1, name: 'Nguyễn Văn Minh', email: 'minh@email.com', balance: '2.500.000đ', status: 'active' as const },
-    { id: 2, name: 'Trần Thị Lan', email: 'lan@email.com', balance: '850.000đ', status: 'active' as const },
-    { id: 3, name: 'Lê Văn Hùng', email: 'hung@email.com', balance: '0đ', status: 'blocked' as const },
-  ];
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <AdminSectionHeader
-        title="Người dùng"
-        subtitle="Quản lý tài khoản"
-        icon={Users}
-        action={
-          <button className="relative z-10 px-4 py-2 bg-brand-primary text-white text-[11px] font-black rounded-xl hover:bg-brand-secondary transition-colors shadow-lg shadow-emerald-100 uppercase tracking-tight shrink-0">
-            + Thêm người dùng
-          </button>
-        }
-      />
-
-      <AdminCard className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Họ tên</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Số dư</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user, index) => (
-                <motion.tr
-                  key={user.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm font-black text-slate-800 uppercase tracking-wide">
-                    {user.name}
-                  </td>
-                  <td className="px-6 py-4 text-[13px] text-slate-500">{user.email}</td>
-                  <td className="px-6 py-4 text-sm font-black text-red-600">{user.balance}</td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold italic ${
-                        user.status === 'active'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {user.status === 'active' ? 'Hoạt động' : 'Đã khóa'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-[13px] font-bold text-brand-primary hover:underline">
-                      Chỉnh sửa
-                    </button>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </AdminCard>
     </motion.div>

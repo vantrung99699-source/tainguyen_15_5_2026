@@ -36,7 +36,8 @@ interface ItemStockPageProps {
   shopTitle: string;
   item: StockServiceItem;
   onBack: () => void;
-  onSave: (resources: StockResource[]) => void;
+  /** Lưu kho ngay (không đóng trang) */
+  onPersist: (resources: StockResource[]) => void;
 }
 
 type AddResourceMode = 'single' | 'bulk' | 'txt' | 'api';
@@ -144,10 +145,18 @@ function AddSingleResourceModal({
   return createPortal(modal, document.body);
 }
 
-export default function ItemStockPage({ shopTitle, item, onBack, onSave }: ItemStockPageProps) {
+export default function ItemStockPage({ shopTitle, item, onBack, onPersist }: ItemStockPageProps) {
   const [resources, setResources] = useState<StockResource[]>(() =>
     normalizeStockResources(item.resources)
   );
+
+  const updateResources = (updater: (prev: StockResource[]) => StockResource[]) => {
+    setResources((prev) => {
+      const next = updater(prev);
+      onPersist(next);
+      return next;
+    });
+  };
   const [addMode, setAddMode] = useState<AddResourceMode>('single');
   const [showSingleModal, setShowSingleModal] = useState(false);
   const [bulkDraft, setBulkDraft] = useState('');
@@ -211,8 +220,8 @@ export default function ItemStockPage({ shopTitle, item, onBack, onSave }: ItemS
       setAddMessage('Không có dữ liệu hợp lệ để thêm.');
       return;
     }
-    setResources((prev) => [...prev, ...valid]);
-    setAddMessage(`Đã thêm ${valid.length} tài nguyên vào kho (chưa lưu).`);
+    updateResources((prev) => [...prev, ...valid]);
+    setAddMessage(`Đã thêm ${valid.length} tài nguyên và lưu kho.`);
     setBulkDraft('');
     setTxtFileName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -275,26 +284,28 @@ export default function ItemStockPage({ shopTitle, item, onBack, onSave }: ItemS
 
   const removeResource = (index: number) => {
     if (!confirm('Xóa tài khoản này khỏi kho?')) return;
-    setResources((prev) => prev.filter((_, i) => i !== index));
+    updateResources((prev) => prev.filter((_, i) => i !== index));
+    setAddMessage('Đã xóa và lưu kho.');
     clearSelection();
   };
 
   const deleteSelected = () => {
     if (!someSelected) return;
     if (!confirm(`Xóa ${selectedIndexes.size} tài khoản đã chọn?`)) return;
-    setResources((prev) => prev.filter((_, i) => !selectedIndexes.has(i)));
+    updateResources((prev) => prev.filter((_, i) => !selectedIndexes.has(i)));
+    setAddMessage(`Đã xóa ${selectedIndexes.size} tài khoản và lưu kho.`);
     clearSelection();
   };
 
   const deleteAllResources = () => {
     if (resources.length === 0) return;
     if (!confirm('Xóa toàn bộ tài khoản trong kho?')) return;
-    setResources([]);
+    updateResources(() => []);
+    setAddMessage('Đã xóa toàn bộ kho và lưu.');
     clearSelection();
   };
 
   const handleBack = () => {
-    onSave(resources);
     onBack();
   };
 

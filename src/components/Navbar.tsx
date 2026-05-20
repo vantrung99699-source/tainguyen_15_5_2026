@@ -1,7 +1,13 @@
-import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield } from 'lucide-react';
+import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield, FileText } from 'lucide-react';
+import { useExtraPages } from '../hooks/useExtraPages';
+import { getMenuExtraPages } from '../services/extraPagesConfig';
 import type { AppPage } from '../pages/admin/AdminPage';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSiteHeaderConfig } from '../hooks/useSiteHeaderConfig';
+import { getContactDisplayText, getContactHref } from '../services/siteHeaderConfig';
+import { useSiteDesign } from '../hooks/useSiteDesign';
+import { SiteLogo } from './SiteLogo';
 
 // Mock user data
 interface UserData {
@@ -20,7 +26,29 @@ const mockUser: UserData = {
   ],
 };
 
-export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) => void }) {
+export default function Navbar({
+  onNavigate,
+  onOpenExtraPage,
+}: {
+  onNavigate?: (page: AppPage) => void;
+  onOpenExtraPage?: (slug: string) => void;
+}) {
+  const extraPages = useExtraPages();
+  const khacMenuItems = useMemo(() => {
+    return getMenuExtraPages(extraPages).map((page) => {
+      if (page.linkType === 'external' && page.externalUrl.trim()) {
+        return {
+          label: page.title,
+          href: page.externalUrl.trim(),
+          external: true,
+        };
+      }
+      return {
+        label: page.title,
+        onClick: () => onOpenExtraPage?.(page.slug),
+      };
+    });
+  }, [extraPages, onOpenExtraPage]);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
@@ -28,6 +56,11 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const headerConfig = useSiteHeaderConfig();
+  const design = useSiteDesign();
+  const contactText = getContactDisplayText(headerConfig);
+  const contactHref = getContactHref(headerConfig);
+  const visibleNavLinks = headerConfig.navLinks.filter((l) => l.enabled && l.label.trim());
 
   useEffect(() => {
     const handleScroll = () => {
@@ -40,28 +73,59 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
   return (
     <div className="w-full relative z-[100]">
       {/* Header Top - Becomes relative so it scrolls away */}
-      <div className={`w-full bg-[#2a5b46] border-b border-white/5 py-1.5 backdrop-blur-md transition-all duration-300 ${isScrolled ? 'opacity-0 -translate-y-full h-0 py-0' : 'opacity-100 translate-y-0 h-auto'}`}>
-        <div className="max-w-[1700px] mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-white/80 hover:text-white transition-colors cursor-pointer group">
-              <Phone className="w-3.5 h-3.5 opacity-70" />
-              <span className="text-[11px] font-bold tracking-tight">Kỹ thuật: 1900 xxxx (24/7)</span>
-            </div>
-            <div className="h-3 w-[1px] bg-white/20"></div>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-[11px] font-bold text-white/60 hover:text-white transition-colors">Về chúng tôi</a>
-              <a href="#" className="text-[11px] font-bold text-white/60 hover:text-white transition-colors">Tin tức</a>
-              <a href="#" className="text-[11px] font-bold text-white/60 hover:text-white transition-colors">API Docs</a>
-            </div>
+      {headerConfig.topBarEnabled && (
+      <motion.div
+        className={`w-full border-b border-white/5 py-1.5 backdrop-blur-md transition-all duration-300 ${isScrolled ? 'opacity-0 -translate-y-full h-0 py-0' : 'opacity-100 translate-y-0 h-auto'}`}
+        style={{ backgroundColor: design.topBarBg }}
+      >
+        <div className="max-w-[1700px] mx-auto px-6 flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-6">
+            {contactText &&
+              (contactHref ? (
+                <a
+                  href={contactHref}
+                  className="flex items-center gap-2 text-white/80 transition-colors hover:text-white"
+                >
+                  <Phone className="h-3.5 w-3.5 opacity-70" />
+                  <span className="text-[11px] font-bold tracking-tight">{contactText}</span>
+                </a>
+              ) : (
+                <div className="flex items-center gap-2 text-white/80">
+                  <Phone className="h-3.5 w-3.5 opacity-70" />
+                  <span className="text-[11px] font-bold tracking-tight">{contactText}</span>
+                </div>
+              ))}
+            {visibleNavLinks.length > 0 && contactText && (
+              <div className="h-3 w-px shrink-0 bg-white/20" />
+            )}
+            {visibleNavLinks.length > 0 && (
+              <div className="flex flex-wrap items-center gap-4">
+                {visibleNavLinks.map((link) => (
+                  <a
+                    key={link.id}
+                    href={link.url || '#'}
+                    className="text-[11px] font-bold text-white/60 transition-colors hover:text-white"
+                    {...(link.url.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4">
+            {headerConfig.showTopBarCustomText && headerConfig.topBarCustomText.trim() && (
+              <p className="hidden max-w-md truncate text-right text-[11px] font-bold text-white/90 md:block">
+                {headerConfig.topBarCustomText.trim()}
+              </p>
+            )}
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-white/90 hover:bg-white/10 transition-all cursor-pointer group">
               <Coins className="w-3 h-3 text-yellow-400" />
               <span className="text-[10px] font-black tracking-widest uppercase">VND</span>
               <ChevronDown className="w-3 h-3 opacity-40 group-hover:translate-y-0.5 transition-transform" />
             </div>
-            
+
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-white/90 hover:bg-white/10 transition-all cursor-pointer group">
               <Globe className="w-3 h-3 text-emerald-400" />
               <span className="text-[10px] font-black tracking-widest uppercase">VN - VI</span>
@@ -69,21 +133,20 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
+      )}
 
       {/* Main Header - Always Sticky */}
-      <header className={`w-full bg-white h-[70px] flex items-center border-b border-slate-100 sticky top-0 z-[100] transition-all duration-300 shadow-emerald-950/10 ${isScrolled ? 'shadow-md h-[64px]' : 'shadow-none'}`}>
+      <header
+        className={`w-full h-[70px] flex items-center border-b border-slate-100 sticky top-0 z-[100] transition-all duration-300 shadow-emerald-950/10 ${isScrolled ? 'shadow-md h-[64px]' : 'shadow-none'}`}
+        style={{ backgroundColor: design.mainHeaderBg }}
+      >
         <div className="max-w-[1700px] mx-auto px-6 w-full flex items-center justify-between gap-4">
           
           {/* Left: Logo & Nav */}
           <div className="flex items-center gap-10 shrink-0">
-            <a href="/" className="flex items-center gap-3.5 group">
-              <div className="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center shadow-lg shadow-emerald-100 group-hover:scale-105 transition-transform duration-300">
-                <span className="text-white font-black text-xl italic select-none leading-none">T</span>
-              </div>
-              <span className="text-slate-800 font-black text-[22px] tracking-tight hidden lg:block select-none">
-                TapHoa<span className="text-brand-primary">MMO</span>
-              </span>
+            <a href="/" className="group flex items-center gap-3.5">
+              <SiteLogo design={design} markClassName="w-10 h-10 group-hover:scale-105 transition-transform duration-300" />
             </a>
 
             {/* Nav Menu Items - Dark Text for White Header */}
@@ -99,14 +162,23 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
                   { label: 'Tài khoản Facebook', href: '#' },
                 ]}
               />
-              <NavItem label="Liên hệ" isDark />
+              <NavItem label="Khác" hasSub isDark subItems={khacMenuItems} hideFooter />
               <NavItem label="Công cụ" hasSub isDark />
-              <button 
-                onClick={() => onNavigate?.('order-history')}
-                className="relative h-full flex items-center"
-              >
-                <span className="text-slate-600 hover:text-brand-primary text-[14px] font-black tracking-tight transition-all py-2 cursor-pointer">Lịch sử</span>
-              </button>
+              <NavItem
+                label="Lịch sử"
+                hasSub
+                isDark
+                subItems={[
+                  {
+                    label: 'Lịch sử giao dịch',
+                    onClick: () => onNavigate?.('transaction-history'),
+                  },
+                  {
+                    label: 'Lịch sử đơn hàng',
+                    onClick: () => onNavigate?.('order-history'),
+                  },
+                ]}
+              />
               <button
                 type="button"
                 onClick={() => onNavigate?.('deposit')}
@@ -221,9 +293,16 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
                             <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
                               <User className="w-4 h-4" /> Tài khoản của tôi
                             </a>
-                            <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
-                              <Coins className="w-4 h-4" /> Lịch sử giao dịch
-                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onNavigate?.('transaction-history');
+                                setShowUserMenu(false);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                            >
+                              <Coins className="h-4 w-4" /> Lịch sử giao dịch
+                            </button>
                             <button 
                               onClick={() => onNavigate?.('order-history')}
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors"
@@ -272,34 +351,30 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
       </header>
 
       {/* Clean Marquee Ticker - Scrolled state hides this */}
+      {headerConfig.marqueeEnabled && headerConfig.marqueeLines.length > 0 && (
       <div className={`w-full overflow-hidden m-0 p-0 bg-transparent border-none transition-all duration-300 ${isScrolled ? 'opacity-0 -translate-y-full h-0 pointer-events-none' : 'opacity-100 translate-y-0 h-8 mt-1'}`}>
         <div className="max-w-[1700px] mx-auto px-6">
           <div className="relative flex items-center h-full overflow-hidden">
-            <motion.div 
-              animate={{ x: ["50%", "-100%"] }}
-              transition={{ 
-                duration: 30, 
-                repeat: Infinity, 
-                ease: "linear"
+            <motion.div
+              animate={{ x: ['50%', '-100%'] }}
+              transition={{
+                duration: 30,
+                repeat: Infinity,
+                ease: 'linear',
               }}
               className="whitespace-nowrap text-[13px] font-bold text-slate-400 flex gap-20 select-none pointer-events-none lowercase tracking-tight"
             >
-              <div className="flex items-center gap-4">
-                <span className="w-1.5 h-1.5 bg-brand-primary/40 rounded-full"></span>
-                <span>Chào mừng bạn đến với <span className="text-brand-primary">TapHoaMMO</span> - Hệ thống giao dịch tài nguyên tự động 24/7.</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="w-1.5 h-1.5 bg-brand-primary/40 rounded-full"></span>
-                <span>Hệ thống vừa cập nhật thêm nhiều sản phẩm Cloud API mới, mời các bạn tham khảo tại mục Sản phẩm.</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="w-1.5 h-1.5 bg-orange-400/40 rounded-full"></span>
-                <span>Cảnh báo: Không giao dịch bên ngoài hệ thống để tránh bị lừa đảo.</span>
-              </div>
+              {headerConfig.marqueeLines.map((line, i) => (
+                <div key={`${i}-${line.slice(0, 24)}`} className="flex items-center gap-4">
+                  <span className={`h-1.5 w-1.5 rounded-full ${i % 3 === 2 ? 'bg-orange-400/40' : 'bg-brand-primary/40'}`} />
+                  <span>{line}</span>
+                </div>
+              ))}
             </motion.div>
           </div>
         </div>
       </div>
+      )}
 
       {/* Auth Modal */}
       <AnimatePresence>
@@ -444,70 +519,138 @@ export default function Navbar({ onNavigate }: { onNavigate?: (page: AppPage) =>
   );
 }
 
-function NavItem({ 
-  label, 
-  hasSub, 
-  isDark, 
-  subItems 
-}: { 
-  label: string; 
-  hasSub?: boolean; 
+function NavItem({
+  label,
+  hasSub,
+  isDark,
+  subItems,
+  hideFooter,
+}: {
+  label: string;
+  hasSub?: boolean;
   isDark?: boolean;
-  subItems?: { label: string; href: string }[];
+  hideFooter?: boolean;
+  subItems?: { label: string; href?: string; onClick?: () => void; external?: boolean }[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasDropdown = Boolean(subItems && subItems.length > 0);
+  const linkClass = `flex items-center gap-1.5 ${
+    isDark ? 'text-slate-600 hover:text-brand-primary' : 'text-white hover:text-white/80'
+  } text-[14px] font-black tracking-tight transition-all py-2`;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [isOpen]);
 
   return (
-    <div 
-      className="relative h-full flex items-center"
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
+    <div
+      ref={rootRef}
+      className="relative flex h-full items-center"
+      onMouseEnter={() => hasDropdown && setIsOpen(true)}
+      onMouseLeave={() => hasDropdown && setIsOpen(false)}
     >
-      <a 
-        href="#" 
-        className={`flex items-center gap-1.5 ${isDark ? 'text-slate-600 hover:text-brand-primary' : 'text-white hover:text-white/80'} text-[14px] font-black tracking-tight transition-all py-2`}
-      >
-        <span>{label}</span>
-        {hasSub && (
-          <motion.span
-            animate={{ rotate: isOpen ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-          >
+      {hasSub ? (
+        <button
+          type="button"
+          aria-expanded={hasDropdown ? isOpen : undefined}
+          aria-haspopup={hasDropdown ? 'menu' : undefined}
+          onClick={() => hasDropdown && setIsOpen((v) => !v)}
+          className={linkClass}
+        >
+          <span>{label}</span>
+          <motion.span animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
             <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'opacity-30' : 'opacity-60'}`} />
           </motion.span>
-        )}
-      </a>
+        </button>
+      ) : (
+        <a href="#" className={linkClass}>
+          <span>{label}</span>
+        </a>
+      )}
 
       <AnimatePresence>
-        {isOpen && subItems && (
+        {isOpen && hasDropdown && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute top-12 left-1/2 -translate-x-1/2 w-56 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-100 p-2 z-[110]"
+            className="absolute left-1/2 top-full z-[110] -translate-x-1/2 pt-2"
           >
+            <div
+              role="menu"
+              className="w-56 rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_50px_rgba(0,0,0,0.1)]"
+            >
             <div className="flex flex-col gap-1">
-              {subItems.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-[12px] hover:bg-slate-50 text-[13px] font-bold text-slate-600 hover:text-brand-primary transition-all group"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-slate-50 group-hover:bg-brand-primary/10 flex items-center justify-center transition-colors">
-                    {item.label === 'Gmail' && <Mail className="w-4 h-4 text-slate-400 group-hover:text-brand-primary" />}
-                    {item.label === 'Tài khoản' && <User className="w-4 h-4 text-slate-400 group-hover:text-brand-primary" />}
-                    {item.label === 'Tài khoản Facebook' && <Facebook className="w-4 h-4 text-slate-400 group-hover:text-brand-primary" />}
-                  </div>
-                  <span>{item.label}</span>
-                </a>
-              ))}
+              {subItems!.map((item) =>
+                item.onClick ? (
+                  <button
+                    key={item.label}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      item.onClick?.();
+                      setIsOpen(false);
+                    }}
+                    className="group flex w-full items-center gap-3 rounded-[12px] px-4 py-3 text-left text-[13px] font-bold text-slate-600 transition-all hover:bg-slate-50 hover:text-brand-primary"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 transition-colors group-hover:bg-brand-primary/10">
+                      {item.label.includes('giao dịch') && (
+                        <Coins className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                      )}
+                      {item.label.includes('đơn hàng') && (
+                        <History className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                      )}
+                      {!item.label.includes('giao dịch') && !item.label.includes('đơn hàng') && (
+                        <FileText className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                      )}
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                ) : (
+                  <a
+                    key={item.label}
+                    href={item.href ?? '#'}
+                    target={item.external ? '_blank' : undefined}
+                    rel={item.external ? 'noopener noreferrer' : undefined}
+                    role="menuitem"
+                    onClick={() => setIsOpen(false)}
+                    className="group flex items-center gap-3 rounded-[12px] px-4 py-3 text-[13px] font-bold text-slate-600 transition-all hover:bg-slate-50 hover:text-brand-primary"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 transition-colors group-hover:bg-brand-primary/10">
+                      {item.label === 'Gmail' && <Mail className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />}
+                      {item.label === 'Tài khoản' && <User className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />}
+                      {item.label === 'Tài khoản Facebook' && (
+                        <Facebook className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                      )}
+                      {!['Gmail', 'Tài khoản', 'Tài khoản Facebook'].includes(item.label) && (
+                        <FileText className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                      )}
+                    </div>
+                    <span>{item.label}</span>
+                  </a>
+                ),
+              )}
             </div>
             
-            <div className="mt-2 pt-2 border-t border-slate-50">
-              <a href="#" className="flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors">
-                Xem tất cả
-              </a>
+            {!hideFooter && (
+              <div className="mt-2 border-t border-slate-50 pt-2">
+                <a
+                  href="#"
+                  className="flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 transition-colors hover:text-brand-primary"
+                >
+                  Xem tất cả
+                </a>
+              </div>
+            )}
             </div>
           </motion.div>
         )}

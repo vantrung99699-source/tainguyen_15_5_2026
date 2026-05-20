@@ -29,6 +29,21 @@ export interface PaymentGateway {
   /** STK nhận (hiển thị QR VietQR) */
   accountNumber: string;
   accountHolder: string;
+  /** Bật khuyến mãi nạp riêng cổng này */
+  depositPromotionEnabled: boolean;
+  /** Bậc khuyến mãi theo loại tiền của cổng (minDepositCurrency) */
+  depositPromotionTiers: DepositPromotionTier[];
+}
+
+/** Bậc khuyến mãi khi nạp tiền (theo khoảng số tiền) */
+export interface DepositPromotionTier {
+  id: string;
+  minAmount: number;
+  /** null = không giới hạn trên */
+  maxAmount: number | null;
+  /** % thưởng thêm vào ví (VD: 1 = +1%) */
+  bonusPercent: number;
+  currency: DepositCurrency;
 }
 
 export interface PaymentGlobalSettings {
@@ -41,6 +56,21 @@ export interface PaymentGlobalSettings {
   depositSyntaxType: DepositSyntaxType;
   /** Prefix khi kiểu = Prefix + ID (VD: NAPTIEN) */
   depositPrefix: string;
+}
+
+/** Khuyến mãi nạp tiền toàn hệ thống (áp dụng mọi cổng, không phải mã coupon) */
+export interface GlobalDepositPromotionSettings {
+  enabled: boolean;
+  /** Tên chương trình (hiển thị admin / gợi ý khách) */
+  name: string;
+  /** ISO datetime — null = không giới hạn thời gian */
+  endsAt: string | null;
+  currency: DepositCurrency;
+  /** true = nhiều bậc theo số tiền; false = một mức % cố định */
+  useTierMilestones: boolean;
+  flatBonusPercent: number;
+  flatMinAmount: number;
+  tiers: DepositPromotionTier[];
 }
 
 export interface DepositUserProfile {

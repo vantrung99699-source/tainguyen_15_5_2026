@@ -19,6 +19,12 @@ import {
   Clock,
   Link2,
   MoreVertical,
+  BarChart3,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Files,
   Box,
   X,
   Layers,
@@ -38,6 +44,10 @@ import type { Category } from '../../types';
 import ItemStockPage from './ItemStockPage';
 import type { StockResource } from './stockResource';
 import DetailDescriptionEditor from '../../components/admin/DetailDescriptionEditor';
+import ItemSalesStatsModal from '../../components/admin/ItemSalesStatsModal';
+import { PreorderAdminTab } from './PreorderAdminTab';
+import { loadServiceShops, saveServiceShops, syncItemStock } from '../../services/serviceShopConfig';
+import { onStockUpdated } from '../../services/preorderService';
 
 type ShopStatus = 'visible' | 'hidden';
 type SaleMode = 'fifo' | 'oldest' | 'newest' | 'random';
@@ -59,6 +69,8 @@ interface ServiceItem {
   enabled: boolean;
   /** Tài nguyên trong kho (mỗi phần tử = 1 dòng tài khoản / key / file…) */
   resources: StockResource[];
+  preorderEnabled: boolean;
+  preorderMaxWaitDays: number;
 }
 
 interface CreateItemInput {
@@ -72,6 +84,8 @@ interface CreateItemInput {
   detailDescription: string;
   saleMode: SaleMode;
   visibility: ShopStatus;
+  preorderEnabled: boolean;
+  preorderMaxWaitDays: number;
 }
 type IconSourceMode = 'preset' | 'upload';
 
@@ -344,7 +358,7 @@ function formatPrice(price: number) {
 }
 
 function syncStock(item: ServiceItem): ServiceItem {
-  return { ...item, stock: item.resources.length };
+  return syncItemStock(item);
 }
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -786,6 +800,10 @@ function CreateItemModal({
   const [detailDescription, setDetailDescription] = useState(initialItem?.detailDescription ?? '');
   const [saleMode, setSaleMode] = useState<SaleMode>(initialItem?.saleMode ?? 'fifo');
   const [visibility, setVisibility] = useState<ShopStatus>(initialItem?.visibility ?? 'visible');
+  const [preorderEnabled, setPreorderEnabled] = useState(initialItem?.preorderEnabled ?? false);
+  const [preorderMaxWaitDays, setPreorderMaxWaitDays] = useState(
+    String(initialItem?.preorderMaxWaitDays ?? 3),
+  );
 
   const slugInvalid = slug.length > 0 && !isValidSlug(slug);
 
@@ -842,6 +860,8 @@ function CreateItemModal({
               detailDescription: detailDescription.trim(),
               saleMode,
               visibility,
+              preorderEnabled,
+              preorderMaxWaitDays: Math.max(1, Number(preorderMaxWaitDays) || 3),
             });
           }}
         >
@@ -961,6 +981,40 @@ function CreateItemModal({
             />
           </div>
 
+
+          <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={preorderEnabled}
+                onChange={(e) => setPreorderEnabled(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-violet-300 text-brand-primary"
+              />
+              <span>
+                <span className="text-sm font-bold text-violet-900">Cho phép đặt trước</span>
+                <span className="mt-0.5 block text-[12px] text-violet-700/80">
+                  Trang khách luôn hiện Mua ngay và Đặt trước; nếu còn kho, ấn Đặt trước sẽ nhắc dùng Mua ngay
+                </span>
+              </span>
+            </label>
+            {preorderEnabled ? (
+              <div>
+                <FormFieldLabel>Số ngày chờ tối đa khách được chọn</FormFieldLabel>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={preorderMaxWaitDays}
+                  onChange={(e) => setPreorderMaxWaitDays(e.target.value)}
+                  className={inputClass}
+                />
+                <p className="mt-1 text-[11px] text-violet-700/70">
+                  Khách chọn 1–{preorderMaxWaitDays || 3} ngày; quá hạn chưa xác nhận → tự hoàn tiền
+                </p>
+              </div>
+            ) : null}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <FormFieldLabel required>Kiểu bán</FormFieldLabel>
@@ -1036,20 +1090,75 @@ function ServiceShopBlock({
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [showEditShopModal, setShowEditShopModal] = useState(false);
   const [shopMenuOpen, setShopMenuOpen] = useState(false);
+  const [itemMenu, setItemMenu] = useState<{ itemId: number; top: number; left: number } | null>(null);
+  const [statsItem, setStatsItem] = useState<ServiceItem | null>(null);
   const shopMenuRef = useRef<HTMLDivElement>(null);
+  const itemMenuRef = useRef<HTMLDivElement>(null);
 
   const categoryLink = shop.slug ? `${CATEGORY_URL_PREFIX}${shop.slug}` : '';
 
   useEffect(() => {
-    if (!shopMenuOpen) return;
+    if (!shopMenuOpen && itemMenu === null) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (shopMenuRef.current && !shopMenuRef.current.contains(e.target as Node)) {
+      if (shopMenuOpen && shopMenuRef.current && !shopMenuRef.current.contains(e.target as Node)) {
         setShopMenuOpen(false);
+      }
+      if (itemMenu !== null && itemMenuRef.current && !itemMenuRef.current.contains(e.target as Node)) {
+        setItemMenu(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [shopMenuOpen]);
+  }, [shopMenuOpen, itemMenu]);
+
+  const menuItem = itemMenu ? shop.items.find((i) => i.id === itemMenu.itemId) : null;
+
+  const getItemLink = (item: ServiceItem) =>
+    item.slug && shop.slug ? `${CATEGORY_URL_PREFIX}${shop.slug}/${item.slug}` : '';
+
+  const duplicateItem = (item: ServiceItem) => {
+    const copy: ServiceItem = syncStock({
+      ...item,
+      id: Date.now(),
+      name: `${item.name} (bản sao)`,
+      slug: item.slug ? `${item.slug}-copy-${Date.now()}` : '',
+      createdAt: new Date().toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      sold: 0,
+      resources: item.resources.map((r) => ({ ...r })),
+    });
+    onUpdateShop({ ...shop, items: [...shop.items, copy] });
+    setItemMenu(null);
+  };
+
+  const toggleItemVisibility = (itemId: number) => {
+    onUpdateShop({
+      ...shop,
+      items: shop.items.map((i) =>
+        i.id === itemId
+          ? {
+              ...i,
+              visibility: i.visibility === 'visible' ? 'hidden' : 'visible',
+              enabled: i.visibility !== 'visible',
+            }
+          : i,
+      ),
+    });
+    setItemMenu(null);
+  };
+
+  const openItemMenu = (itemId: number, button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 224;
+    const left = Math.min(rect.left, window.innerWidth - menuWidth - 8);
+    const top = rect.bottom + 6;
+    setItemMenu((prev) => (prev?.itemId === itemId ? null : { itemId, top, left: Math.max(8, left) }));
+  };
 
   const addItem = (data: CreateItemInput) => {
     const newItem: ServiceItem = syncStock({
@@ -1073,6 +1182,8 @@ function ServiceShopBlock({
       saleMode: data.saleMode,
       visibility: data.visibility,
       enabled: data.visibility === 'visible',
+      preorderEnabled: data.preorderEnabled,
+      preorderMaxWaitDays: data.preorderMaxWaitDays,
       resources: [],
     });
     onUpdateShop({ ...shop, items: [...shop.items, newItem] });
@@ -1097,6 +1208,8 @@ function ServiceShopBlock({
               saleMode: data.saleMode,
               visibility: data.visibility,
               enabled: data.visibility === 'visible',
+              preorderEnabled: data.preorderEnabled,
+              preorderMaxWaitDays: data.preorderMaxWaitDays,
             })
           : i
       ),
@@ -1285,9 +1398,9 @@ function ServiceShopBlock({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden bg-white"
+            className="bg-white"
           >
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50/90">
@@ -1351,9 +1464,16 @@ function ServiceShopBlock({
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                          <button className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 transition-colors">
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </button>
+                          <button
+                              type="button"
+                              onClick={(e) => openItemMenu(item.id, e.currentTarget)}
+                              aria-expanded={itemMenu?.itemId === item.id}
+                              aria-haspopup="menu"
+                              aria-label="Tùy chọn mặt hàng"
+                              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 transition-colors"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
                         </motion.div>
                       </td>
                       <td className="px-4 py-3">
@@ -1455,6 +1575,112 @@ function ServiceShopBlock({
           />
         )}
       </AnimatePresence>
+
+      {menuItem && itemMenu &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={itemMenuRef}
+              role="menu"
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              style={{ position: 'fixed', top: itemMenu.top, left: itemMenu.left, zIndex: 500 }}
+              className="w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setStatsItem(menuItem);
+                  setItemMenu(null);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50"
+              >
+                <BarChart3 className="h-4 w-4 shrink-0 text-brand-primary" />
+                Xem thống kê
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void navigator.clipboard.writeText(String(menuItem.id));
+                  setItemMenu(null);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50"
+              >
+                <Copy className="h-4 w-4 shrink-0 text-zinc-500" />
+                Sao chép ID
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!getItemLink(menuItem)}
+                onClick={() => {
+                  const link = getItemLink(menuItem);
+                  if (!link) return;
+                  window.open(link, '_blank', 'noopener,noreferrer');
+                  setItemMenu(null);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ExternalLink className="h-4 w-4 shrink-0 text-brand-primary" />
+                Xem link mặt hàng
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => duplicateItem(menuItem)}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50"
+              >
+                <Files className="h-4 w-4 shrink-0 text-zinc-500" />
+                Nhân bản mặt hàng
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => toggleItemVisibility(menuItem.id)}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50"
+              >
+                {menuItem.visibility === 'visible' ? (
+                  <>
+                    <EyeOff className="h-4 w-4 shrink-0 text-amber-600" />
+                    Ẩn mặt hàng
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 shrink-0 text-brand-primary" />
+                    Hiện mặt hàng
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  openEditItemModal(menuItem.id);
+                  setItemMenu(null);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold text-zinc-700 transition-colors hover:bg-emerald-50"
+              >
+                <Pencil className="h-4 w-4 shrink-0 text-zinc-500" />
+                Chỉnh sửa nhanh
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {statsItem && (
+        <ItemSalesStatsModal
+          itemId={statsItem.id}
+          itemName={statsItem.name}
+          unitPrice={statsItem.price}
+          totalSold={statsItem.sold}
+          onClose={() => setStatsItem(null)}
+        />
+      )}
     </motion.div>
   );
 }
@@ -1483,8 +1709,13 @@ function createEmptyShop(data: CreateParentCategoryInput): ServiceShop {
 }
 
 export default function CreateServiceSection() {
-  const [shops, setShops] = useState<ServiceShop[]>(initialShops);
+  const [shops, setShops] = useState<ServiceShop[]>(() => loadServiceShops());
+  const [adminView, setAdminView] = useState<'shops' | 'preorders'>('shops');
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
+
+  useEffect(() => {
+    saveServiceShops(shops);
+  }, [shops]);
   const [stockNav, setStockNav] = useState<{ shopId: number; itemId: number } | null>(null);
 
   const stockContext = stockNav
@@ -1508,6 +1739,7 @@ export default function CreateServiceSection() {
           : s
       )
     );
+    onStockUpdated(shopId, itemId);
   };
 
   const totalItems = shops.reduce((sum, s) => sum + s.items.length, 0);
@@ -1525,9 +1757,8 @@ export default function CreateServiceSection() {
         shopTitle={stockContext.shop.title}
         item={stockContext.item}
         onBack={() => setStockNav(null)}
-        onSave={(resources) => {
+        onPersist={(resources) => {
           saveItemStock(stockContext.shop.id, stockContext.item.id, resources);
-          setStockNav(null);
         }}
       />
     );
@@ -1535,6 +1766,28 @@ export default function CreateServiceSection() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="flex gap-1 border-b border-zinc-200">
+        <button
+          type="button"
+          onClick={() => setAdminView('shops')}
+          className={`rounded-t-lg px-4 py-2.5 text-[12px] font-bold ${adminView === 'shops' ? 'border border-b-0 border-zinc-200 bg-white text-brand-primary' : 'text-zinc-500'}`}
+        >
+          Shop & mặt hàng
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminView('preorders')}
+          className={`rounded-t-lg px-4 py-2.5 text-[12px] font-bold ${adminView === 'preorders' ? 'border border-b-0 border-zinc-200 bg-white text-brand-primary' : 'text-zinc-500'}`}
+        >
+          Đơn đặt trước
+        </button>
+      </div>
+
+      {adminView === 'preorders' ? (
+        <PreorderAdminTab />
+      ) : (
+        <>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-primary">Dịch vụ</p>
@@ -1609,6 +1862,9 @@ export default function CreateServiceSection() {
         </Fragment>
       ))}
 
+
+        </>
+      )}
 
       <AnimatePresence>
         {showCreateShopModal && (

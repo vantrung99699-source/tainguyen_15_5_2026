@@ -1,5 +1,6 @@
 import type { BankCatalogEntry, PaymentGateway, Transaction } from '../../types/payment';
 import { DEFAULT_MIN_DEPOSIT_VND } from '../../types/payment';
+import { getDefaultTiersForCurrency } from '../../services/depositPromotion';
 
 const gatewayDefaults = {
   providerType: 'bank' as const,
@@ -8,6 +9,8 @@ const gatewayDefaults = {
   depositNote: '',
   accountNumber: '1023456789',
   accountHolder: 'TAPHOAMMO VN',
+  depositPromotionEnabled: true,
+  depositPromotionTiers: getDefaultTiersForCurrency('VND'),
 };
 
 export const initialPaymentGateways: PaymentGateway[] = [
@@ -288,5 +291,7 @@ export function catalogToGateway(entry: BankCatalogEntry): PaymentGateway {
     depositNote: '',
     accountNumber: '',
     accountHolder: 'TAPHOAMMO VN',
+    depositPromotionEnabled: true,
+    depositPromotionTiers: getDefaultTiersForCurrency(isUsd ? 'USD' : 'VND'),
   };
 }

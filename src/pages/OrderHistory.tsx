@@ -1,6 +1,21 @@
-import { useState } from 'react';
-import { Search, ChevronLeft, Filter } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, ChevronLeft, Filter, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import type { PreorderOrder, PreorderStatus } from '../types/preorder';
+import {
+  cancelPreorderByUser,
+  getPreordersForCustomer,
+  PREORDERS_UPDATED,
+} from '../services/preorderService';
+
+const PREORDER_STATUS_LABELS: Record<PreorderStatus, string> = {
+  pending_admin: 'Chờ xác nhận',
+  approved: 'Đã duyệt — chờ kho',
+  fulfilled: 'Đã giao hàng',
+  rejected: 'Đã từ chối',
+  cancelled_by_user: 'Đã hủy',
+  expired_refunded: 'Hết hạn — đã hoàn',
+};
 
 interface OrderItem {
   id: string;
@@ -22,9 +37,17 @@ const mockOrders: OrderItem[] = [
 ];
 
 export default function OrderHistory() {
+  const [tab, setTab] = useState<'orders' | 'preorders'>('orders');
   const [searchQuery, setSearchQuery] = useState('');
   const [orders, setOrders] = useState<OrderItem[]>(mockOrders);
+  const [preorders, setPreorders] = useState<PreorderOrder[]>(() => getPreordersForCustomer());
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+
+  useEffect(() => {
+    const sync = () => setPreorders(getPreordersForCustomer());
+    window.addEventListener(PREORDERS_UPDATED, sync);
+    return () => window.removeEventListener(PREORDERS_UPDATED, sync);
+  }, []);
 
   const filteredOrders = orders.filter(order => 
     order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -93,6 +116,109 @@ export default function OrderHistory() {
           <h1 className="text-2xl font-black text-slate-800">Lịch sử đơn hàng</h1>
         </div>
 
+        <div className="mb-6 flex gap-2 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setTab('orders')}
+            className={`px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
+              tab === 'orders'
+                ? 'border-brand-primary text-brand-primary'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Đơn mua
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('preorders')}
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
+              tab === 'preorders'
+                ? 'border-violet-600 text-violet-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Clock className="h-4 w-4" />
+            Đặt trước
+            {preorders.filter((p) => p.status === 'pending_admin').length > 0 ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] text-violet-800">
+                {preorders.filter((p) => p.status === 'pending_admin').length}
+              </span>
+            ) : null}
+          </button>
+        </div>
+
+        {tab === 'preorders' ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Mã đơn</th>
+                    <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Sản phẩm</th>
+                    <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">SL</th>
+                    <th className="text-right px-4 py-4 text-xs font-bold text-slate-500 uppercase">Tổng</th>
+                    <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">Trạng thái</th>
+                    <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preorders.map((po) => (
+                    <tr key={po.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                      <td className="px-4 py-4">
+                          <motion.div className="text-sm font-bold text-violet-700">{po.id}</motion.div>
+                        <div className="text-xs text-slate-400">
+                          Hạn: {new Date(po.expiresAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm font-medium text-slate-700">{po.itemName}</td>
+                      <td className="px-4 py-4 text-center text-sm font-bold">{po.quantity}</td>
+                      <td className="px-4 py-4 text-right text-sm font-bold">
+                        {po.totalAmount.toLocaleString('vi-VN')}đ
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                          {PREORDER_STATUS_LABELS[po.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {po.status === 'pending_admin' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!confirm('Hủy đặt trước và hoàn tiền?')) return;
+                              const r = cancelPreorderByUser(po.id);
+                              if (!r.ok) alert(r.error);
+                              else setPreorders(getPreordersForCustomer());
+                            }}
+                            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100"
+                          >
+                            Hủy & hoàn tiền
+                          </button>
+                        ) : po.status === 'fulfilled' && po.deliveredContents.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              alert(`Nội dung giao:\n${po.deliveredContents.join('\n---\n')}`)
+                            }
+                            className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Xem hàng
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {preorders.length === 0 ? (
+              <p className="py-16 text-center text-slate-400 font-medium">Chưa có đơn đặt trước</p>
+            ) : null}
+          </div>
+        ) : (
+          <>
         {/* Search */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6">
           <div className="flex items-center gap-3">
@@ -213,6 +339,8 @@ export default function OrderHistory() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );
