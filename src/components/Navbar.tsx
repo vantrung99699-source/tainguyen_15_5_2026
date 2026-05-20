@@ -8,23 +8,32 @@ import { useSiteHeaderConfig } from '../hooks/useSiteHeaderConfig';
 import { getContactDisplayText, getContactHref } from '../services/siteHeaderConfig';
 import { useSiteDesign } from '../hooks/useSiteDesign';
 import { SiteLogo } from './SiteLogo';
+import {
+  CUSTOMER_SESSION_UPDATED,
+  loadCustomerSession,
+} from '../services/customerSession';
+import { WALLET_TX_UPDATED } from '../services/walletTransactionService';
 
-// Mock user data
 interface UserData {
   name: string;
   balance: number;
   notifications: { id: number; text: string; time: string; unread: boolean }[];
 }
 
-const mockUser: UserData = {
-  name: 'Nguyễn Văn Minh',
-  balance: 2500000,
-  notifications: [
+const DEMO_NOTIFICATIONS: UserData['notifications'] = [
     { id: 1, text: 'Đơn hàng #12345 đã được xử lý thành công', time: '5 phút trước', unread: true },
     { id: 2, text: 'Tài khoản TikTok của bạn đã được kích hoạt', time: '1 giờ trước', unread: true },
     { id: 3, text: 'Khuyến mãi 20% cho các tài khoản mới', time: '2 giờ trước', unread: false },
-  ],
-};
+];
+
+function sessionToUserData(): UserData {
+  const session = loadCustomerSession();
+  return {
+    name: session.username,
+    balance: session.balance,
+    notifications: DEMO_NOTIFICATIONS,
+  };
+}
 
 export default function Navbar({
   onNavigate,
@@ -52,9 +61,9 @@ export default function Navbar({
   const [isScrolled, setIsScrolled] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(() => sessionToUserData());
   const [showNotifications, setShowNotifications] = useState(false);
   const headerConfig = useSiteHeaderConfig();
   const design = useSiteDesign();
@@ -69,6 +78,24 @@ export default function Navbar({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const syncBalance = () => {
+      if (!isLoggedIn) return;
+      const session = loadCustomerSession();
+      setUserData((prev) =>
+        prev
+          ? { ...prev, name: session.username, balance: session.balance }
+          : sessionToUserData(),
+      );
+    };
+    window.addEventListener(CUSTOMER_SESSION_UPDATED, syncBalance);
+    window.addEventListener(WALLET_TX_UPDATED, syncBalance);
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_UPDATED, syncBalance);
+      window.removeEventListener(WALLET_TX_UPDATED, syncBalance);
+    };
+  }, [isLoggedIn]);
 
   return (
     <div className="w-full relative z-[100]">
@@ -456,7 +483,7 @@ export default function Navbar({
                       </label>
                       <a href="#" className="font-bold text-brand-primary hover:underline">Quên mật khẩu?</a>
                     </div>
-                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(mockUser); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
+                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(sessionToUserData()); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
                       Đăng nhập
                     </button>
                   </form>
@@ -492,7 +519,7 @@ export default function Navbar({
                         Tôi đồng ý với <a href="#" className="text-brand-primary hover:underline">Điều khoản dịch vụ</a> và <a href="#" className="text-brand-primary hover:underline">Chính sách bảo mật</a>
                       </span>
                     </label>
-                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(mockUser); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
+                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(sessionToUserData()); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
                       Tạo tài khoản
                     </button>
                   </form>

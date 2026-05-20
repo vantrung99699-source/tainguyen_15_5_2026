@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Clock, X } from 'lucide-react';
 import type { Product } from '../../types';
 import { ProductDescriptions } from '../storefront/ProductDescriptions';
 import { createPreorder } from '../../services/preorderService';
-import { loadCustomerSession } from '../../services/customerSession';
+import {
+  CUSTOMER_SESSION_UPDATED,
+  loadCustomerSession,
+} from '../../services/customerSession';
+import { WALLET_TX_UPDATED } from '../../services/walletTransactionService';
 
 interface PreorderCheckoutModalProps {
   product: Product;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (orderId: string) => void;
 }
 
 export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderCheckoutModalProps) {
-  const session = loadCustomerSession();
+  const [balance, setBalance] = useState(() => loadCustomerSession().balance);
   const min = product.minPurchase ?? 1;
   const max = product.maxPurchase ?? 999;
   const maxWaitDays = product.preorderMaxWaitDays ?? 30;
@@ -22,6 +26,16 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
   const [quantity, setQuantity] = useState(min);
   const [waitDays, setWaitDays] = useState(defaultWait);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const sync = () => setBalance(loadCustomerSession().balance);
+    window.addEventListener(CUSTOMER_SESSION_UPDATED, sync);
+    window.addEventListener(WALLET_TX_UPDATED, sync);
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_UPDATED, sync);
+      window.removeEventListener(WALLET_TX_UPDATED, sync);
+    };
+  }, []);
 
   const total = product.price * quantity;
 
@@ -41,7 +55,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
       setError(result.error);
       return;
     }
-    onSuccess();
+    onSuccess(result.order.id);
     onClose();
   };
 
@@ -77,7 +91,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
             <ProductDescriptions product={product} />
 
             <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2.5 text-[12px] text-violet-900">
-              <p className="font-bold">Số dư: {session.balance.toLocaleString('vi-VN')} đ</p>
+              <p className="font-bold">Số dư: {balance.toLocaleString('vi-VN')} đ</p>
               <p className="mt-1 flex items-center gap-1 text-violet-800">
                 <Clock className="h-3.5 w-3.5" />
                 Bạn chọn thời gian chờ — quá hạn chưa xác nhận sẽ tự hoàn tiền

@@ -7,8 +7,8 @@ export interface CustomerSession {
 }
 
 const DEFAULT_SESSION: CustomerSession = {
-  userId: 'demo-customer',
-  username: 'nguyenvana',
+  userId: '8821',
+  username: 'minhnv',
   balance: 2_500_000,
 };
 

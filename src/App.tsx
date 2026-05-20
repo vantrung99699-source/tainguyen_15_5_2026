@@ -27,6 +27,15 @@ import { SERVICE_SHOPS_UPDATED } from './services/serviceShopConfig';
 import { PreorderCheckoutModal } from './components/preorder/PreorderCheckoutModal';
 import { BuyNowModal } from './components/storefront/BuyNowModal';
 import { PreorderStockBlockedModal } from './components/storefront/PreorderStockBlockedModal';
+import { PurchaseSuccessModal } from './components/storefront/PurchaseSuccessModal';
+import { ensureDemoCustomerHistory } from './data/demoCustomerHistorySeed';
+
+interface PurchaseSuccessState {
+  variant: 'buy' | 'preorder';
+  productName: string;
+  orderId?: string;
+  deliveredCount?: number;
+}
 
 export default function App() {
   const design = useSiteDesign();
@@ -38,6 +47,9 @@ export default function App() {
   const [buyProduct, setBuyProduct] = useState<Product | null>(null);
   const [preorderProduct, setPreorderProduct] = useState<Product | null>(null);
   const [preorderBlockedProduct, setPreorderBlockedProduct] = useState<Product | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<PurchaseSuccessState | null>(null);
+  const [orderHistoryTab, setOrderHistoryTab] = useState<'orders' | 'preorders'>('orders');
+  const [orderHistoryKey, setOrderHistoryKey] = useState(0);
   const [extraPageSlug, setExtraPageSlug] = useState<string | null>(() => parseExtraPageSlugFromPath());
   const extraPages = useExtraPages();
   const activeExtraPage = extraPageSlug ? findExtraPageBySlug(extraPages, extraPageSlug) : null;
@@ -65,6 +77,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    ensureDemoCustomerHistory();
+  }, []);
+
+  useEffect(() => {
     const sync = () => setProducts(loadStorefrontProducts());
     window.addEventListener(SERVICE_SHOPS_UPDATED, sync);
     const onStorage = (e: StorageEvent) => {
@@ -84,6 +100,19 @@ export default function App() {
     }
     setBuyProduct(product);
   }, []);
+
+  const goToOrderHistory = useCallback(
+    (tab: 'orders' | 'preorders') => {
+      setPurchaseSuccess(null);
+      setExtraPageSlug(null);
+      pushHomePath();
+      setOrderHistoryTab(tab);
+      setOrderHistoryKey((k) => k + 1);
+      setCurrentPage('order-history');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [],
+  );
 
   const handlePreorder = useCallback((product: Product) => {
     if (product.stock > 0) {
@@ -218,7 +247,7 @@ export default function App() {
         ) : activeExtraPage ? (
           <ExtraPageView page={activeExtraPage} onBack={closeExtraPage} />
         ) : currentPage === 'order-history' ? (
-          <OrderHistory />
+          <OrderHistory key={orderHistoryKey} initialTab={orderHistoryTab} />
         ) : currentPage === 'transaction-history' ? (
           <TransactionHistoryPage onBack={() => setCurrentPage('home')} />
         ) : currentPage === 'deposit' ? (
@@ -346,12 +375,16 @@ export default function App() {
             key={`buy-${buyProduct.id}`}
             product={buyProduct}
             onClose={() => setBuyProduct(null)}
-            onSuccess={(contents) => {
+            onSuccess={({ deliveredContents, orderId }) => {
+              const name = buyProduct.name;
               setProducts(loadStorefrontProducts());
-              alert(
-                `Mua thành công!\n\nNội dung giao hàng:\n${contents.join('\n---\n')}`,
-              );
               setBuyProduct(null);
+              setPurchaseSuccess({
+                variant: 'buy',
+                productName: name,
+                orderId,
+                deliveredCount: deliveredContents.length,
+              });
             }}
           />
         ) : null}
@@ -360,11 +393,28 @@ export default function App() {
             key={`pre-${preorderProduct.id}`}
             product={preorderProduct}
             onClose={() => setPreorderProduct(null)}
-            onSuccess={() => {
+            onSuccess={(orderId) => {
+              const name = preorderProduct.name;
               setProducts(loadStorefrontProducts());
-              alert('Đặt trước thành công! Admin sẽ xác nhận trong thời gian chờ.');
               setPreorderProduct(null);
+              setPurchaseSuccess({
+                variant: 'preorder',
+                productName: name,
+                orderId,
+              });
             }}
+          />
+        ) : null}
+        {purchaseSuccess ? (
+          <PurchaseSuccessModal
+            variant={purchaseSuccess.variant}
+            productName={purchaseSuccess.productName}
+            orderId={purchaseSuccess.orderId}
+            deliveredCount={purchaseSuccess.deliveredCount}
+            onClose={() => setPurchaseSuccess(null)}
+            onGoToOrderHistory={() =>
+              goToOrderHistory(purchaseSuccess.variant === 'preorder' ? 'preorders' : 'orders')
+            }
           />
         ) : null}
       </AnimatePresence>

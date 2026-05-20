@@ -1,5 +1,6 @@
 import type { SaleMode, ServiceItem, ServiceShop } from '../types/serviceShop';
-import { adjustCustomerBalance, loadCustomerSession } from './customerSession';
+import { loadCustomerSession } from './customerSession';
+import { createInstantOrder } from './orderService';
 import {
   findShopItem,
   loadServiceShops,
@@ -38,7 +39,7 @@ export function createInstantPurchase(params: {
   itemId: number;
   quantity: number;
 }):
-  | { ok: true; deliveredContents: string[]; totalAmount: number }
+  | { ok: true; deliveredContents: string[]; totalAmount: number; orderId: string }
   | { ok: false; error: string } {
   const session = loadCustomerSession();
   const shops = loadServiceShops();
@@ -75,12 +76,22 @@ export function createInstantPurchase(params: {
       : { ...s, items: s.items.map((i) => (i.id === item.id ? updatedItem : i)) },
   );
 
-  adjustCustomerBalance(-totalAmount);
   saveServiceShops(nextShops);
+
+  const order = createInstantOrder({
+    shopId: params.shopId,
+    itemId: params.itemId,
+    productName: item.name,
+    quantity: params.quantity,
+    unitPrice: item.price,
+    totalAmount,
+    deliveredContents: picked.map((r) => r.content),
+  });
 
   return {
     ok: true,
     deliveredContents: picked.map((r) => r.content),
     totalAmount,
+    orderId: order.id,
   };
 }

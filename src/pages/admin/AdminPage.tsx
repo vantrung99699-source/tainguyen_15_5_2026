@@ -29,6 +29,7 @@ import {
   Bell,
   PanelTop,
   History,
+  ShoppingBag,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import CreateServiceSection from './CreateServiceSection';
@@ -49,6 +50,13 @@ import {
   UserNotificationSection,
 } from './AdminNotificationSections';
 import { AdminHistorySection } from './AdminHistorySection';
+import { AdminOrdersSection } from './AdminOrdersSection';
+import { ORDERS_UPDATED } from '../../services/orderService';
+import {
+  getUnreadPendingPreorderCount,
+  markPendingPreordersAsSeen,
+  PREORDERS_UPDATED,
+} from '../../services/preorderService';
 
 export type AdminSection =
   | 'statistics'
@@ -56,6 +64,7 @@ export type AdminSection =
   | 'create-service'
   | 'create-product'
   | 'payments'
+  | 'orders'
   | 'settings-header'
   | 'design'
   | 'promotions'
@@ -104,6 +113,7 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
       { id: 'create-service', label: 'Tạo dịch vụ', icon: Wrench },
       { id: 'create-product', label: 'Tạo sản phẩm', icon: Package },
       { id: 'payments', label: 'Quản lý thanh toán', icon: CreditCard },
+      { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag },
       { id: 'history', label: 'Lịch sử', icon: History },
     ],
   },
@@ -158,6 +168,9 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set([GENERAL_SETTINGS_GROUP_ID]),
   );
+  const [unreadPreorderCount, setUnreadPreorderCount] = useState(() =>
+    getUnreadPendingPreorderCount(),
+  );
 
   const nav = resolveNav(activeSection);
   const ActiveIcon = nav?.leaf.icon;
@@ -165,6 +178,24 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   useEffect(() => {
     if (activeSection === 'settings-header') {
       setExpandedGroups((prev) => new Set(prev).add(GENERAL_SETTINGS_GROUP_ID));
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    const refresh = () => setUnreadPreorderCount(getUnreadPendingPreorderCount());
+    refresh();
+    window.addEventListener(PREORDERS_UPDATED, refresh);
+    window.addEventListener(ORDERS_UPDATED, refresh);
+    return () => {
+      window.removeEventListener(PREORDERS_UPDATED, refresh);
+      window.removeEventListener(ORDERS_UPDATED, refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === 'orders') {
+      markPendingPreordersAsSeen();
+      setUnreadPreorderCount(getUnreadPendingPreorderCount());
     }
   }, [activeSection]);
 
@@ -338,7 +369,15 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                             >
                               <Icon className="h-4 w-4" />
                             </span>
-                            <span className="truncate">{item.label}</span>
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            {item.id === 'orders' && unreadPreorderCount > 0 ? (
+                              <span
+                                className="shrink-0 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-black tabular-nums text-white shadow-sm"
+                                title={`${unreadPreorderCount} đơn đặt trước chưa xem`}
+                              >
+                                {unreadPreorderCount > 99 ? '99+' : unreadPreorderCount}
+                              </span>
+                            ) : null}
                           </button>
                         </li>
                       );
@@ -350,6 +389,21 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
           </nav>
 
           <div className="space-y-2 border-t border-zinc-100 p-3">
+            {unreadPreorderCount > 0 && activeSection !== 'orders' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSection('orders');
+                  setSidebarOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-xl bg-violet-50 px-3 py-2.5 text-left ring-1 ring-violet-100 transition-colors hover:bg-violet-100/80"
+              >
+                <ShoppingBag className="h-4 w-4 shrink-0 text-violet-600" />
+                <p className="text-[11px] font-bold leading-snug text-violet-900">
+                  {unreadPreorderCount} đơn đặt trước chờ xác nhận
+                </p>
+              </button>
+            ) : null}
             <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 ring-1 ring-amber-100">
               <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600" />
               <p className="text-[11px] font-medium leading-snug text-amber-900/80">
@@ -425,6 +479,7 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                   {activeSection === 'create-service' && <CreateServiceSection />}
                   {activeSection === 'create-product' && <CreateProductSection />}
                   {activeSection === 'payments' && <PaymentsSection />}
+                  {activeSection === 'orders' && <AdminOrdersSection />}
                   {activeSection === 'settings-header' && <HeaderSettingsSection />}
                   {activeSection === 'design' && <DesignSection />}
                   {activeSection === 'promotions' && <PromotionsSection />}

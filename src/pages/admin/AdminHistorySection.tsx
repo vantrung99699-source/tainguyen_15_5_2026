@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowDownLeft,
@@ -13,11 +13,15 @@ import {
 import type { TransactionType } from '../../types/customerWallet';
 import type { BankLedgerKind, NotificationLogStatus } from '../../types/adminHistory';
 import {
-  MOCK_ADMIN_BALANCE_MOVEMENTS,
   MOCK_BANK_LEDGER,
   MOCK_EMAIL_LOGS,
   MOCK_TELEGRAM_LOGS,
 } from '../../data/mockAdminHistory';
+import {
+  getAdminBalanceMovements,
+  WALLET_TX_UPDATED,
+} from '../../services/walletTransactionService';
+import type { AdminBalanceMovement } from '../../types/adminHistory';
 import {
   BANK_LEDGER_LABELS,
   BANK_LEDGER_STYLES,
@@ -138,12 +142,21 @@ export function AdminHistorySection() {
   const [balanceType, setBalanceType] = useState<TransactionType | 'all'>('all');
   const [bankKind, setBankKind] = useState<BankLedgerKind | 'all'>('all');
   const [notifyStatus, setNotifyStatus] = useState<NotificationLogStatus | 'all'>('all');
+  const [balanceMovements, setBalanceMovements] = useState<AdminBalanceMovement[]>(() =>
+    getAdminBalanceMovements(),
+  );
+
+  useEffect(() => {
+    const reload = () => setBalanceMovements(getAdminBalanceMovements());
+    window.addEventListener(WALLET_TX_UPDATED, reload);
+    return () => window.removeEventListener(WALLET_TX_UPDATED, reload);
+  }, []);
 
   const activeMeta = HISTORY_TABS.find((t) => t.id === activeTab)!;
 
   const balanceRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return MOCK_ADMIN_BALANCE_MOVEMENTS.filter((row) => {
+    return balanceMovements.filter((row) => {
       if (balanceType !== 'all' && row.type !== balanceType) return false;
       if (!q) return true;
       return (
@@ -152,7 +165,7 @@ export function AdminHistorySection() {
         row.note.toLowerCase().includes(q)
       );
     });
-  }, [search, balanceType]);
+  }, [search, balanceType, balanceMovements]);
 
   const bankRows = useMemo(() => {
     const q = search.trim().toLowerCase();

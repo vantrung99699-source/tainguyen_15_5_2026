@@ -1,24 +1,38 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { ShoppingCart, X } from 'lucide-react';
 import type { Product } from '../../types';
 import { ProductDescriptions } from './ProductDescriptions';
 import { createInstantPurchase } from '../../services/purchaseService';
-import { loadCustomerSession } from '../../services/customerSession';
+import {
+  CUSTOMER_SESSION_UPDATED,
+  loadCustomerSession,
+} from '../../services/customerSession';
+import { WALLET_TX_UPDATED } from '../../services/walletTransactionService';
 
 interface BuyNowModalProps {
   product: Product;
   onClose: () => void;
-  onSuccess: (deliveredContents: string[]) => void;
+  onSuccess: (payload: { deliveredContents: string[]; orderId: string }) => void;
 }
 
 export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
-  const session = loadCustomerSession();
+  const [balance, setBalance] = useState(() => loadCustomerSession().balance);
   const min = product.minPurchase ?? 1;
   const max = Math.min(product.maxPurchase ?? 999, product.stock);
   const [quantity, setQuantity] = useState(min);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const sync = () => setBalance(loadCustomerSession().balance);
+    window.addEventListener(CUSTOMER_SESSION_UPDATED, sync);
+    window.addEventListener(WALLET_TX_UPDATED, sync);
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_UPDATED, sync);
+      window.removeEventListener(WALLET_TX_UPDATED, sync);
+    };
+  }, []);
 
   const total = product.price * quantity;
 
@@ -37,7 +51,10 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
       setError(result.error);
       return;
     }
-    onSuccess(result.deliveredContents);
+    onSuccess({
+      deliveredContents: result.deliveredContents,
+      orderId: result.orderId,
+    });
     onClose();
   };
 
@@ -73,7 +90,7 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
             <ProductDescriptions product={product} />
 
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-[12px] text-emerald-900">
-              <p className="font-bold">Số dư: {session.balance.toLocaleString('vi-VN')} đ</p>
+              <p className="font-bold">Số dư: {balance.toLocaleString('vi-VN')} đ</p>
               <p className="mt-0.5">Kho hiện có: {product.stock} · Giao ngay sau thanh toán</p>
             </div>
 

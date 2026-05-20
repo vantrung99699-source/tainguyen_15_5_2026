@@ -1,57 +1,123 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search, ChevronLeft, Filter, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { PreorderOrder, PreorderStatus } from '../types/preorder';
+import type { CustomerOrder, CustomerOrderStatus } from '../types/customerOrder';
+import { loadCustomerSession } from '../services/customerSession';
 import {
   cancelPreorderByUser,
   getPreordersForCustomer,
   PREORDERS_UPDATED,
 } from '../services/preorderService';
+import {
+  formatOrderDate,
+  getOrdersForCustomer,
+  ORDERS_UPDATED,
+} from '../services/orderService';
+import { ClampedProductName } from '../components/common/ClampedProductName';
 
 const PREORDER_STATUS_LABELS: Record<PreorderStatus, string> = {
   pending_admin: 'Chờ xác nhận',
-  approved: 'Đã duyệt — chờ kho',
-  fulfilled: 'Đã giao hàng',
+  approved: 'Đã xác nhận — chờ giao',
+  fulfilled: 'Hoàn thành',
   rejected: 'Đã từ chối',
-  cancelled_by_user: 'Đã hủy',
+  cancelled_by_user: 'Khách đã hủy',
   expired_refunded: 'Hết hạn — đã hoàn',
 };
 
-interface OrderItem {
-  id: string;
-  date: string;
-  time: string;
-  productName: string;
-  quantity: number;
-  payment: string;
-  status: 'completed' | 'pending' | 'cancelled';
-  note: string;
+/** Đồng bộ màu trạng thái với Admin → Đơn hàng */
+const PREORDER_STATUS_STYLES: Record<PreorderStatus, string> = {
+  pending_admin: 'bg-amber-100 text-amber-800',
+  approved: 'bg-sky-100 text-sky-800',
+  fulfilled: 'bg-emerald-100 text-emerald-800',
+  rejected: 'bg-red-100 text-red-700',
+  cancelled_by_user: 'bg-zinc-200 text-zinc-700',
+  expired_refunded: 'bg-violet-100 text-violet-800',
+};
+
+function PreorderStatusBadge({ status }: { status: PreorderStatus }) {
+  return (
+    <span
+      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${PREORDER_STATUS_STYLES[status]}`}
+    >
+      {PREORDER_STATUS_LABELS[status]}
+    </span>
+  );
 }
 
-const mockOrders: OrderItem[] = [
-  { id: 'DH001234', date: '15/05/2026', time: '14:30', productName: 'Tài khoản Gmail 1 năm', quantity: 5, payment: '500.000đ', status: 'completed', note: 'Giao hàng nhanh' },
-  { id: 'DH001235', date: '15/05/2026', time: '13:45', productName: 'Tài khoản Facebook VIP', quantity: 2, payment: '1.200.000đ', status: 'completed', note: '' },
-  { id: 'DH001236', date: '14/05/2026', time: '10:20', productName: 'Tool SEO Pro', quantity: 1, payment: '2.500.000đ', status: 'pending', note: 'Đang xử lý' },
-  { id: 'DH001237', date: '14/05/2026', time: '09:15', productName: 'Tài khoản TikTok 10K followers', quantity: 3, payment: '900.000đ', status: 'completed', note: '' },
-  { id: 'DH001238', date: '13/05/2026', time: '16:50', productName: 'Proxy Premium', quantity: 10, payment: '1.000.000đ', status: 'cancelled', note: 'Khách hủy đơn' },
-];
+const ORDER_STATUS_UI: Record<
+  CustomerOrderStatus,
+  { label: string; ui: 'completed' | 'pending' | 'cancelled' }
+> = {
+  completed: { label: 'Hoàn thành', ui: 'completed' },
+  pending: { label: 'Đang xử lý', ui: 'pending' },
+  cancelled: { label: 'Đã hủy', ui: 'cancelled' },
+  refunded: { label: 'Đã hoàn tiền', ui: 'cancelled' },
+  partial_refunded: { label: 'Hoàn một phần', ui: 'pending' },
+};
 
-export default function OrderHistory() {
-  const [tab, setTab] = useState<'orders' | 'preorders'>('orders');
+interface OrderHistoryProps {
+  initialTab?: 'orders' | 'preorders';
+}
+
+export default function OrderHistory({ initialTab = 'orders' }: OrderHistoryProps) {
+  const session = loadCustomerSession();
+  const [tab, setTab] = useState<'orders' | 'preorders'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [orders, setOrders] = useState<OrderItem[]>(mockOrders);
+  const [orders, setOrders] = useState<CustomerOrder[]>(() =>
+    getOrdersForCustomer(session.userId, 'instant'),
+  );
   const [preorders, setPreorders] = useState<PreorderOrder[]>(() => getPreordersForCustomer());
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
+  const reloadInstant = () =>
+    setOrders(getOrdersForCustomer(loadCustomerSession().userId, 'instant'));
+
   useEffect(() => {
-    const sync = () => setPreorders(getPreordersForCustomer());
-    window.addEventListener(PREORDERS_UPDATED, sync);
-    return () => window.removeEventListener(PREORDERS_UPDATED, sync);
+    setTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    const syncPreorders = () => setPreorders(getPreordersForCustomer());
+    const syncOrders = () => reloadInstant();
+    window.addEventListener(PREORDERS_UPDATED, syncPreorders);
+    window.addEventListener(ORDERS_UPDATED, syncOrders);
+    return () => {
+      window.removeEventListener(PREORDERS_UPDATED, syncPreorders);
+      window.removeEventListener(ORDERS_UPDATED, syncOrders);
+    };
   }, []);
 
-  const filteredOrders = orders.filter(order => 
-    order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.productName.toLowerCase().includes(searchQuery.toLowerCase())
+  const sortedPreorders = useMemo(
+    () => [...preorders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [preorders],
+  );
+
+  const displayOrders = useMemo(() => {
+    return [...orders]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((o) => {
+      const { date, time } = formatOrderDate(o.createdAt);
+      const statusInfo = ORDER_STATUS_UI[o.status];
+      return {
+        id: o.id,
+        date,
+        time,
+        productName: o.productName,
+        quantity: o.quantity,
+        payment: `${o.totalAmount.toLocaleString('vi-VN')}đ`,
+        status: statusInfo.ui,
+        statusLabel: statusInfo.label,
+        note: o.note,
+        raw: o,
+      };
+    });
+  }, [orders]);
+
+  const filteredOrders = displayOrders.filter(
+    (order) =>
+      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.productName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const toggleSelectAll = () => {
@@ -70,42 +136,51 @@ export default function OrderHistory() {
     );
   };
 
-  const handleDelete = (orderId: string) => {
-    if (confirm('Bạn có chắc muốn xóa đơn hàng này?')) {
-      setOrders(orders.filter(o => o.id !== orderId));
-      setSelectedOrders(prev => prev.filter(id => id !== orderId));
+  const handleView = (order: (typeof displayOrders)[0]) => {
+    const lines = [
+      `Mã: ${order.id}`,
+      `Sản phẩm: ${order.productName}`,
+      `Thanh toán: ${order.payment}`,
+      `Trạng thái: ${order.statusLabel}`,
+      order.raw.deliveredContents.length
+        ? `Nội dung:\n${order.raw.deliveredContents.join('\n---\n')}`
+        : '',
+    ].filter(Boolean);
+    alert(lines.join('\n'));
+  };
+
+  const handleDownload = (order: (typeof displayOrders)[0]) => {
+    if (!order.raw.deliveredContents.length) {
+      alert('Đơn chưa có nội dung tải xuống.');
+      return;
     }
+    const blob = new Blob([order.raw.deliveredContents.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${order.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const handleView = (order: OrderItem) => {
-    alert(`Xem chi tiết đơn hàng ${order.id}`);
-  };
-
-  const handleDownload = (order: OrderItem) => {
-    alert(`Tải xuống đơn hàng ${order.id}`);
-  };
-
-  const getStatusBadge = (status: OrderItem['status']) => {
+  const getStatusBadge = (status: 'completed' | 'pending' | 'cancelled', label: string) => {
     const styles = {
       completed: 'bg-emerald-100 text-emerald-700',
       pending: 'bg-amber-100 text-amber-700',
       cancelled: 'bg-red-100 text-red-700',
     };
-    const labels = {
-      completed: 'Hoàn thành',
-      pending: 'Đang xử lý',
-      cancelled: 'Đã hủy',
-    };
     return (
-      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${styles[status]}`}>
-        {labels[status]}
+      <span
+        className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${styles[status]}`}
+      >
+        {label}
       </span>
     );
   };
 
   return (
     <div className="min-h-screen bg-[#fcfcfd] pb-20">
-      <div className="max-w-[1400px] mx-auto px-6 pt-10">
+      <div className="mx-auto max-w-[1700px] px-6 pt-10">
         <div className="flex items-center gap-3 mb-8">
           <button 
             onClick={() => window.history.back()}
@@ -150,35 +225,41 @@ export default function OrderHistory() {
         {tab === 'preorders' ? (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1100px] table-fixed">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Mã đơn</th>
-                    <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Sản phẩm</th>
+                    <th className="w-[18%] text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Mã đơn</th>
+                    <th className="w-[28%] text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase">Sản phẩm</th>
                     <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">SL</th>
                     <th className="text-right px-4 py-4 text-xs font-bold text-slate-500 uppercase">Tổng</th>
-                    <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">Trạng thái</th>
+                    <th className="w-[18%] min-w-[140px] text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">Trạng thái</th>
                     <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preorders.map((po) => (
+                  {sortedPreorders.map((po) => {
+                    const placed = formatOrderDate(po.createdAt);
+                    const expires = formatOrderDate(po.expiresAt);
+                    return (
                     <tr key={po.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                       <td className="px-4 py-4">
-                          <motion.div className="text-sm font-bold text-violet-700">{po.id}</motion.div>
+                        <div className="text-sm font-bold text-violet-700">{po.id}</div>
+                        <div className="text-xs font-semibold text-slate-600">
+                          Đặt: {placed.date} {placed.time}
+                        </div>
                         <div className="text-xs text-slate-400">
-                          Hạn: {new Date(po.expiresAt).toLocaleDateString('vi-VN')}
+                          Hạn: {expires.date} {expires.time}
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-sm font-medium text-slate-700">{po.itemName}</td>
+                      <td className="max-w-0 px-4 py-4 align-top">
+                        <ClampedProductName name={po.itemName} className="text-slate-700" />
+                      </td>
                       <td className="px-4 py-4 text-center text-sm font-bold">{po.quantity}</td>
                       <td className="px-4 py-4 text-right text-sm font-bold">
                         {po.totalAmount.toLocaleString('vi-VN')}đ
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-                          {PREORDER_STATUS_LABELS[po.status]}
-                        </span>
+                      <td className="whitespace-nowrap px-4 py-4 text-center">
+                        <PreorderStatusBadge status={po.status} />
                       </td>
                       <td className="px-4 py-4 text-center">
                         {po.status === 'pending_admin' ? (
@@ -209,7 +290,8 @@ export default function OrderHistory() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -240,10 +322,10 @@ export default function OrderHistory() {
         {/* Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1280px] table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-4 py-4 text-left border-r border-slate-200">
+                  <th className="w-[4%] px-4 py-4 text-left border-r border-slate-200">
                     <input
                       type="checkbox"
                       checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
@@ -253,7 +335,7 @@ export default function OrderHistory() {
                   </th>
                   <th className="px-4 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Thao tác</th>
                   <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Đơn hàng</th>
-                  <th className="text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Tên sản phẩm</th>
+                  <th className="w-[26%] text-left px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Tên sản phẩm</th>
                   <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Số lượng</th>
                   <th className="text-right px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Thanh toán</th>
                   <th className="text-center px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-200">Trạng thái</th>
@@ -285,26 +367,22 @@ export default function OrderHistory() {
                         >
                           View
                         </button>
-                        <button 
-                          onClick={() => handleDownload(order)}
-                          className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold transition-colors"
-                        >
-                          Download
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(order.id)}
-                          className="px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors"
-                        >
-                          Delete
-                        </button>
+                        {order.raw.deliveredContents.length > 0 ? (
+                          <button
+                            onClick={() => handleDownload(order)}
+                            className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold transition-colors"
+                          >
+                            Download
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-4 border-r border-slate-200">
                       <div className="text-sm font-bold text-brand-primary">{order.id}</div>
                       <div className="text-xs text-slate-400">{order.date} {order.time}</div>
                     </td>
-                    <td className="px-4 py-4 border-r border-slate-200">
-                      <span className="text-sm font-medium text-slate-700">{order.productName}</span>
+                    <td className="max-w-0 px-4 py-4 align-top border-r border-slate-200">
+                      <ClampedProductName name={order.productName} className="text-slate-700" />
                     </td>
                     <td className="px-4 py-4 text-center border-r border-slate-200">
                       <span className="text-sm font-bold text-slate-700">{order.quantity}</span>
@@ -313,7 +391,7 @@ export default function OrderHistory() {
                       <span className="text-sm font-bold text-slate-800">{order.payment}</span>
                     </td>
                     <td className="px-4 py-4 text-center border-r border-slate-200">
-                      {getStatusBadge(order.status)}
+                      {getStatusBadge(order.status, order.statusLabel)}
                     </td>
                     <td className="px-4 py-4">
                       <input

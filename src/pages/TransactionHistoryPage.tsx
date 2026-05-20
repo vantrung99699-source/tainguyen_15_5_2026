@@ -1,7 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, Search, Filter } from 'lucide-react';
 import { motion } from 'motion/react';
-import { MOCK_WALLET_TRANSACTIONS } from '../data/mockWalletHistory';
+import { loadCustomerSession } from '../services/customerSession';
+import {
+  getTransactionsForUser,
+  WALLET_TX_UPDATED,
+} from '../services/walletTransactionService';
 import type { TransactionType, WalletTransaction } from '../types/customerWallet';
 import {
   TRANSACTION_TYPE_LABELS,
@@ -22,9 +26,19 @@ interface TransactionHistoryPageProps {
 export default function TransactionHistoryPage({ onBack }: TransactionHistoryPageProps) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
+  const [transactions, setTransactions] = useState<WalletTransaction[]>(() =>
+    getTransactionsForUser(loadCustomerSession().userId),
+  );
+
+  useEffect(() => {
+    const sync = () =>
+      setTransactions(getTransactionsForUser(loadCustomerSession().userId));
+    window.addEventListener(WALLET_TX_UPDATED, sync);
+    return () => window.removeEventListener(WALLET_TX_UPDATED, sync);
+  }, []);
 
   const filtered = useMemo(() => {
-    return MOCK_WALLET_TRANSACTIONS.filter((tx) => {
+    return transactions.filter((tx) => {
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
       const q = search.trim().toLowerCase();
       if (!q) return true;
@@ -34,7 +48,7 @@ export default function TransactionHistoryPage({ onBack }: TransactionHistoryPag
         TRANSACTION_TYPE_LABELS[tx.type].toLowerCase().includes(q)
       );
     });
-  }, [search, typeFilter]);
+  }, [search, typeFilter, transactions]);
 
   return (
     <div className="min-h-screen bg-[#fcfcfd] pb-20">

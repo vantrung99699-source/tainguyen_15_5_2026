@@ -1,6 +1,7 @@
 import type { PreorderOrder, PreorderStatus } from '../types/preorder';
 import type { SaleMode, ServiceItem, ServiceShop } from '../types/serviceShop';
-import { adjustCustomerBalance, loadCustomerSession } from './customerSession';
+import { loadCustomerSession } from './customerSession';
+import { createPreorderOrder, refundOrder, upsertOrderFromPreorder } from './orderService';
 import {
   findShopItem,
   loadServiceShops,
@@ -61,13 +62,12 @@ function savePreorders(orders: PreorderOrder[]) {
 export function processExpiredPreorders(): PreorderOrder[] {
   const now = Date.now();
   let orders = loadPreorders();
-  let changed = false;
+  const expiredIds: string[] = [];
 
   orders = orders.map((order) => {
     if (order.status !== 'pending_admin') return order;
     if (new Date(order.expiresAt).getTime() > now) return order;
-    adjustCustomerBalance(order.totalAmount);
-    changed = true;
+    expiredIds.push(order.id);
     return {
       ...order,
       status: 'expired_refunded',
@@ -76,7 +76,16 @@ export function processExpiredPreorders(): PreorderOrder[] {
     };
   });
 
-  if (changed) savePreorders(orders);
+  if (expiredIds.length > 0) {
+    savePreorders(orders);
+    for (const id of expiredIds) {
+      const po = orders.find((o) => o.id === id);
+      if (po) {
+        upsertOrderFromPreorder(po);
+        refundOrder(id, 'full', { note: po.rejectReason ?? '' });
+      }
+    }
+  }
   return orders;
 }
 
@@ -152,6 +161,7 @@ export function onStockUpdated(shopId: number, itemId: number) {
     if (result.fulfilled) {
       nextShops = result.shops;
       orders = orders.map((o) => (o.id === order.id ? result.order : o));
+      upsertOrderFromPreorder(result.order);
     }
   }
 
@@ -226,9 +236,9 @@ export function createPreorder(params: {
     rejectReason: null,
   };
 
-  adjustCustomerBalance(-totalAmount);
   const orders = [...loadPreorders(), order];
   savePreorders(orders);
+  createPreorderOrder(order);
 
   return { ok: true, order };
 }
@@ -253,6 +263,7 @@ export function approvePreorder(orderId: string): { ok: boolean; error?: string 
   const result = tryFulfillPreorder(shops, approved);
   orders[idx] = result.fulfilled ? result.order : approved;
   savePreorders(orders);
+  upsertOrderFromPreorder(orders[idx]);
   if (result.fulfilled) saveServiceShops(result.shops);
   else saveServiceShops(shops);
 
@@ -270,7 +281,6 @@ export function rejectPreorder(orderId: string, reason?: string): { ok: boolean;
     return { ok: false, error: 'Không thể từ chối đơn này.' };
   }
 
-  adjustCustomerBalance(order.totalAmount);
   orders[idx] = {
     ...order,
     status: 'rejected',
@@ -278,6 +288,8 @@ export function rejectPreorder(orderId: string, reason?: string): { ok: boolean;
     rejectReason: reason?.trim() || 'Admin từ chối đơn đặt trước',
   };
   savePreorders(orders);
+  upsertOrderFromPreorder(orders[idx]);
+  refundOrder(orderId, 'full', { note: orders[idx].rejectReason ?? '' });
   return { ok: true };
 }
 
@@ -295,7 +307,6 @@ export function cancelPreorderByUser(orderId: string): { ok: boolean; error?: st
     return { ok: false, error: 'Chỉ hủy được khi đơn chưa được admin xác nhận.' };
   }
 
-  adjustCustomerBalance(order.totalAmount);
   orders[idx] = {
     ...order,
     status: 'cancelled_by_user',
@@ -303,16 +314,89 @@ export function cancelPreorderByUser(orderId: string): { ok: boolean; error?: st
     rejectReason: 'Khách hủy đơn',
   };
   savePreorders(orders);
+  upsertOrderFromPreorder(orders[idx]);
+  refundOrder(orderId, 'full', { note: 'Khách hủy đơn' });
   return { ok: true };
+}
+
+/** Admin bấm Giao hàng — trừ kho và chuyển sang đã giao nếu đủ hàng */
+export function fulfillPreorderNow(orderId: string): { ok: boolean; error?: string } {
+  let orders = processExpiredPreorders();
+  const idx = orders.findIndex((o) => o.id === orderId);
+  if (idx < 0) return { ok: false, error: 'Không tìm thấy đơn đặt trước.' };
+
+  const order = orders[idx];
+  if (order.status !== 'approved') {
+    return { ok: false, error: 'Chỉ giao được đơn đã xác nhận (đang chờ kho).' };
+  }
+
+  const shops = loadServiceShops();
+  const result = tryFulfillPreorder(shops, order);
+  if (!result.fulfilled) {
+    return {
+      ok: false,
+      error: 'Kho chưa đủ số lượng. Vui lòng thêm hàng vào Kho rồi bấm Giao hàng lại.',
+    };
+  }
+
+  orders[idx] = result.order;
+  savePreorders(orders);
+  saveServiceShops(result.shops);
+  upsertOrderFromPreorder(result.order);
+  return { ok: true };
+}
+
+export function getPreorderById(orderId: string): PreorderOrder | undefined {
+  return processExpiredPreorders().find((o) => o.id === orderId);
 }
 
 export function getPreordersForAdmin() {
   return processExpiredPreorders();
 }
 
+const ADMIN_PENDING_SEEN_KEY = 'taphoammo_admin_preorder_pending_seen';
+
+function loadSeenPendingIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(ADMIN_PENDING_SEEN_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSeenPendingIds(ids: Set<string>) {
+  localStorage.setItem(ADMIN_PENDING_SEEN_KEY, JSON.stringify([...ids]));
+}
+
+/** Tổng đơn đặt trước đang chờ admin xác nhận */
+export function getPendingPreorderCount(): number {
+  return getPreordersForAdmin().filter((o) => o.status === 'pending_admin').length;
+}
+
+/** Đơn chờ xác nhận admin chưa mở mục Đơn hàng sau khi tạo */
+export function getUnreadPendingPreorderCount(): number {
+  const seen = loadSeenPendingIds();
+  return getPreordersForAdmin().filter(
+    (o) => o.status === 'pending_admin' && !seen.has(o.id),
+  ).length;
+}
+
+export function markPendingPreordersAsSeen(): void {
+  const seen = loadSeenPendingIds();
+  for (const o of getPreordersForAdmin()) {
+    if (o.status === 'pending_admin') seen.add(o.id);
+  }
+  saveSeenPendingIds(seen);
+}
+
 export function getPreordersForCustomer() {
   const session = loadCustomerSession();
-  return processExpiredPreorders().filter((o) => o.userId === session.userId);
+  return processExpiredPreorders()
+    .filter((o) => o.userId === session.userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export { SERVICE_SHOPS_UPDATED };

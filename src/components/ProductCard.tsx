@@ -51,8 +51,10 @@ function BuyActions({
     >
       <button
         type="button"
+        disabled={!buyNowEnabled}
         onClick={(e) => {
           e.stopPropagation();
+          if (!buyNowEnabled) return;
           onBuy?.(product);
         }}
         className={`flex w-full items-center justify-center gap-1.5 rounded-xl font-bold transition-all ${btnBase} ${buyBtnClass}`}

@@ -1,5 +1,6 @@
 import type { ManagedUser } from '../types/user';
 import { DEFAULT_REFERRAL_RATE } from '../types/user';
+import { loadCustomerSession, saveCustomerSession } from './customerSession';
 
 const USERS_KEY = 'taphoammo_managed_users';
 
@@ -68,6 +69,60 @@ export function loadManagedUsers(fallback: ManagedUser[]): ManagedUser[] {
 
 export function saveManagedUsers(users: ManagedUser[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+/** Cộng/trừ số dư user; ưu tiên bảng quản lý user, fallback session khách demo */
+export function adjustUserBalanceById(
+  userId: string,
+  delta: number,
+): { userId: string; username: string; balance: number } {
+  const raw = localStorage.getItem(USERS_KEY);
+  if (raw) {
+    let target: ManagedUser | null = null;
+    const users = (JSON.parse(raw) as ManagedUser[]).map((u) => {
+      const normalized = normalizeUser(u);
+      if (normalized.id !== userId) return normalized;
+      target = { ...normalized, balance: Math.max(0, normalized.balance + delta) };
+      return target;
+    });
+    if (target) {
+      saveManagedUsers(users);
+      const session = loadCustomerSession();
+      if (session.userId === userId) {
+        saveCustomerSession({ ...session, balance: target.balance });
+      }
+      return { userId: target.id, username: target.username, balance: target.balance };
+    }
+  }
+  const session = loadCustomerSession();
+  if (session.userId === userId) {
+    const next = { ...session, balance: Math.max(0, session.balance + delta) };
+    saveCustomerSession(next);
+    return next;
+  }
+  return { userId, username: 'unknown', balance: 0 };
+}
+
+export function findUserById(userId: string, fallback: ManagedUser[]): ManagedUser | undefined {
+  return loadManagedUsers(fallback).find((u) => u.id === userId);
+}
+
+export function resolveUsernameById(userId: string): string {
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { id?: string; username?: string }[];
+      if (Array.isArray(parsed)) {
+        const hit = parsed.find((u) => String(u.id) === userId);
+        if (hit?.username) return String(hit.username);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const session = loadCustomerSession();
+  if (session.userId === userId) return session.username;
+  return userId;
 }
 
 export function formatUserMoney(amount: number) {
