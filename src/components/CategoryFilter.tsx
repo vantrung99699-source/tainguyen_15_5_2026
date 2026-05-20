@@ -3,6 +3,7 @@ import * as LucideIcons from 'lucide-react';
 import { motion } from 'motion/react';
 import type { CategoryFilterLayout } from '../types/siteDesign';
 import { PanelLeft, LayoutGrid } from 'lucide-react';
+import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
 
 interface CategoryFilterProps {
   activeCategory: string;
@@ -15,6 +16,10 @@ export default function CategoryFilter({
   setActiveCategory,
   layout = 'grid',
 }: CategoryFilterProps) {
+  const { t } = useLocaleCurrency();
+  const catLabel = (id: string, fallback: string) =>
+    t(id === 'all' ? 'cat_all' : `cat_${id}`, fallback);
+
   if (layout === 'sidebar') {
     return (
       <aside className="w-full shrink-0 lg:w-[220px]">
@@ -41,7 +46,7 @@ export default function CategoryFilter({
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" style={{ color: isActive ? 'white' : cat.color }} />
-                <span className="truncate">{cat.name}</span>
+                <span className="truncate">{catLabel(cat.id, cat.name)}</span>
               </motion.button>
             );
           })}
@@ -76,7 +81,7 @@ export default function CategoryFilter({
               }`}
             >
               <Icon className="h-5 w-5 shrink-0 transition-colors" style={{ color: isActive ? 'white' : cat.color }} />
-              <span className="truncate uppercase">{cat.name}</span>
+              <span className="truncate uppercase">{catLabel(cat.id, cat.name)}</span>
             </motion.button>
           );
         })}

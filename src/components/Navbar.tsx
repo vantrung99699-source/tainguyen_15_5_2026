@@ -1,4 +1,5 @@
-import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield, FileText } from 'lucide-react';
+import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield, FileText, Share2 } from 'lucide-react';
+import { attachReferrerOnRegister } from '../services/affiliateService';
 import { useExtraPages } from '../hooks/useExtraPages';
 import { getMenuExtraPages } from '../services/extraPagesConfig';
 import type { AppPage } from '../pages/admin/AdminPage';
@@ -13,6 +14,8 @@ import {
   loadCustomerSession,
 } from '../services/customerSession';
 import { WALLET_TX_UPDATED } from '../services/walletTransactionService';
+import { CurrencyLanguageSwitcher } from './common/CurrencyLanguageSwitcher';
+import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
 
 interface UserData {
   name: string;
@@ -67,6 +70,7 @@ export default function Navbar({
   const [showNotifications, setShowNotifications] = useState(false);
   const headerConfig = useSiteHeaderConfig();
   const design = useSiteDesign();
+  const { formatMoney, t } = useLocaleCurrency();
   const contactText = getContactDisplayText(headerConfig);
   const contactHref = getContactHref(headerConfig);
   const visibleNavLinks = headerConfig.navLinks.filter((l) => l.enabled && l.label.trim());
@@ -102,7 +106,7 @@ export default function Navbar({
       {/* Header Top - Becomes relative so it scrolls away */}
       {headerConfig.topBarEnabled && (
       <motion.div
-        className={`w-full border-b border-white/5 py-1.5 backdrop-blur-md transition-all duration-300 ${isScrolled ? 'opacity-0 -translate-y-full h-0 py-0' : 'opacity-100 translate-y-0 h-auto'}`}
+        className={`w-full overflow-visible border-b border-white/5 py-1.5 backdrop-blur-md transition-all duration-300 ${isScrolled ? 'pointer-events-none opacity-0 -translate-y-full h-0 overflow-hidden py-0' : 'pointer-events-auto overflow-visible opacity-100 translate-y-0 h-auto'}`}
         style={{ backgroundColor: design.topBarBg }}
       >
         <div className="max-w-[1700px] mx-auto px-6 flex items-center justify-between gap-4">
@@ -147,17 +151,7 @@ export default function Navbar({
                 {headerConfig.topBarCustomText.trim()}
               </p>
             )}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-white/90 hover:bg-white/10 transition-all cursor-pointer group">
-              <Coins className="w-3 h-3 text-yellow-400" />
-              <span className="text-[10px] font-black tracking-widest uppercase">VND</span>
-              <ChevronDown className="w-3 h-3 opacity-40 group-hover:translate-y-0.5 transition-transform" />
-            </div>
-
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-white/90 hover:bg-white/10 transition-all cursor-pointer group">
-              <Globe className="w-3 h-3 text-emerald-400" />
-              <span className="text-[10px] font-black tracking-widest uppercase">VN - VI</span>
-              <ChevronDown className="w-3 h-3 opacity-40 group-hover:translate-y-0.5 transition-transform" />
-            </div>
+            <CurrencyLanguageSwitcher variant="dark" />
           </div>
         </div>
       </motion.div>
@@ -287,7 +281,7 @@ export default function Navbar({
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
                     <Coins className="w-4 h-4 text-emerald-600" />
                     <span className="text-sm font-black text-emerald-700">
-                      {userData.balance.toLocaleString('vi-VN')}đ
+                      {formatMoney(userData.balance)}
                     </span>
                   </div>
 
@@ -314,7 +308,9 @@ export default function Navbar({
                         >
                           <div className="px-4 py-4 border-b border-slate-100">
                             <p className="font-black text-slate-800">{userData.name}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{userData.balance.toLocaleString('vi-VN')}đ trong tài khoản</p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {formatMoney(userData.balance)} {t('balance_label', 'trong tài khoản')}
+                            </p>
                           </div>
                           <div className="p-2">
                             <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
@@ -323,18 +319,28 @@ export default function Navbar({
                             <button
                               type="button"
                               onClick={() => {
+                                onNavigate?.('affiliate');
+                                setShowUserMenu(false);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                            >
+                              <Share2 className="h-4 w-4" /> {t('menu_affiliate', 'Kiếm tiền / Affiliate')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
                                 onNavigate?.('transaction-history');
                                 setShowUserMenu(false);
                               }}
                               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                              <Coins className="h-4 w-4" /> Lịch sử giao dịch
+                              <Coins className="h-4 w-4" /> {t('menu_transactions', 'Lịch sử giao dịch')}
                             </button>
                             <button 
                               onClick={() => onNavigate?.('order-history')}
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors"
                             >
-                              <History className="w-4 h-4" /> Lịch sử đơn hàng
+                              <History className="w-4 h-4" /> {t('menu_order_history', 'Lịch sử đơn hàng')}
                             </button>
                             <button
                               onClick={() => {
@@ -519,7 +525,18 @@ export default function Navbar({
                         Tôi đồng ý với <a href="#" className="text-brand-primary hover:underline">Điều khoản dịch vụ</a> và <a href="#" className="text-brand-primary hover:underline">Chính sách bảo mật</a>
                       </span>
                     </label>
-                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(sessionToUserData()); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
+                    <button
+                      type="submit"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const session = loadCustomerSession();
+                        attachReferrerOnRegister(session.userId, session.username);
+                        setIsLoggedIn(true);
+                        setUserData(sessionToUserData());
+                        setShowAuthModal(false);
+                      }}
+                      className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer"
+                    >
                       Tạo tài khoản
                     </button>
                   </form>

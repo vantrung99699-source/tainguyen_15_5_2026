@@ -6,6 +6,10 @@ import ProductCard from './components/ProductCard';
 import OrderHistory from './pages/OrderHistory';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import DepositPage from './pages/DepositPage';
+import AffiliatePage from './pages/AffiliatePage';
+import { captureReferralFromUrl } from './services/affiliateService';
+import { CATEGORIES } from './constants';
+import { ensureCategoryTranslations } from './services/localeService';
 import ExtraPageView from './pages/ExtraPageView';
 import {
   findExtraPageBySlug,
@@ -29,6 +33,7 @@ import { BuyNowModal } from './components/storefront/BuyNowModal';
 import { PreorderStockBlockedModal } from './components/storefront/PreorderStockBlockedModal';
 import { PurchaseSuccessModal } from './components/storefront/PurchaseSuccessModal';
 import { ensureDemoCustomerHistory } from './data/demoCustomerHistorySeed';
+import { ensureDemoAffiliateCommissions } from './data/demoAffiliateSeed';
 
 interface PurchaseSuccessState {
   variant: 'buy' | 'preorder';
@@ -78,6 +83,9 @@ export default function App() {
 
   useEffect(() => {
     ensureDemoCustomerHistory();
+    ensureDemoAffiliateCommissions();
+    ensureCategoryTranslations(CATEGORIES.map((c) => ({ id: c.id, name: c.name })));
+    captureReferralFromUrl();
   }, []);
 
   useEffect(() => {
@@ -252,6 +260,8 @@ export default function App() {
           <TransactionHistoryPage onBack={() => setCurrentPage('home')} />
         ) : currentPage === 'deposit' ? (
           <DepositPage />
+        ) : currentPage === 'affiliate' ? (
+          <AffiliatePage onBack={() => setCurrentPage('home')} />
         ) : (
           <>
             <HeroBanner />

@@ -3,11 +3,14 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { initSiteDesign } from './services/siteDesignConfig';
+import { LocaleCurrencyProvider } from './context/LocaleCurrencyContext';
 
 initSiteDesign();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <LocaleCurrencyProvider>
+      <App />
+    </LocaleCurrencyProvider>
   </StrictMode>,
 );

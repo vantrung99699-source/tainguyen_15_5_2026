@@ -13,6 +13,7 @@ import {
   Ban,
   Eye,
   Download,
+  Warehouse,
 } from 'lucide-react';
 import type { CustomerOrder, CustomerOrderKind, CustomerOrderStatus, RefundMode } from '../../types/customerOrder';
 import type { PreorderStatus } from '../../types/preorder';
@@ -96,12 +97,18 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex justify-between gap-4 border-b border-zinc-100 py-2.5 text-sm last:border-0">
       <span className="shrink-0 font-bold text-zinc-500">{label}</span>
-      <span className="text-right font-semibold text-zinc-800">{value}</span>
+      <div className="min-w-0 max-w-[70%] text-right font-semibold text-zinc-800">{value}</div>
     </div>
   );
 }
 
-export function AdminOrdersSection() {
+const STOCK_SHORTAGE_HINT = 'Kho chưa đủ số lượng';
+
+interface AdminOrdersSectionProps {
+  onNavigateToStock?: (shopId: number, itemId: number) => void;
+}
+
+export function AdminOrdersSection({ onNavigateToStock }: AdminOrdersSectionProps = {}) {
   const [orders, setOrders] = useState<CustomerOrder[]>(() => getAllOrdersForAdmin());
   const [tab, setTab] = useState<'all' | CustomerOrderKind>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -468,7 +475,15 @@ export function AdminOrdersSection() {
                     <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 px-4">
                       <DetailRow label="Người mua" value={`@${detailOrder.username}`} />
                       <DetailRow label="User ID" value={detailOrder.userId} />
-                      <DetailRow label="Sản phẩm" value={detailOrder.productName} />
+                      <DetailRow
+                        label="Sản phẩm"
+                        value={
+                          <ClampedProductName
+                            name={detailOrder.productName}
+                            className="text-right font-semibold text-zinc-800"
+                          />
+                        }
+                      />
                       <DetailRow label="Số lượng" value={detailOrder.quantity} />
                       <DetailRow
                         label="Thanh toán"
@@ -494,12 +509,37 @@ export function AdminOrdersSection() {
                         />
                       ) : null}
                       {detailOrder.note ? (
-                        <DetailRow label="Ghi chú" value={detailOrder.note} />
+                        <DetailRow
+                          label="Ghi chú"
+                          value={
+                            <ClampedProductName
+                              name={detailOrder.note}
+                              className="text-right font-medium text-zinc-600"
+                            />
+                          }
+                        />
                       ) : null}
                     </div>
 
                     {actionError ? (
-                      <p className="mt-3 text-sm font-bold text-red-600">{actionError}</p>
+                      <div className="mt-3 rounded-xl border border-red-100 bg-red-50/80 p-3">
+                        <p className="text-sm font-bold text-red-600">{actionError}</p>
+                        {actionError.includes(STOCK_SHORTAGE_HINT) &&
+                        detailOrder &&
+                        onNavigateToStock ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateToStock(detailOrder.shopId, detailOrder.itemId);
+                              closeDetail();
+                            }}
+                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600"
+                          >
+                            <Warehouse className="h-4 w-4" />
+                            Đi tới Kho hàng ngay
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
 
                     {showRefundPanel ? (

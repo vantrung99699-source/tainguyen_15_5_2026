@@ -3,6 +3,7 @@ import type { PreorderOrder, PreorderStatus } from '../types/preorder';
 import { loadCustomerSession } from './customerSession';
 import { addWalletTransaction } from './walletTransactionService';
 import { adjustUserBalanceById } from './userAdmin';
+import { processOrderCommission, reverseOrderCommission } from './affiliateService';
 
 const PREORDER_STORAGE_KEY = 'taphoammo_preorders';
 
@@ -93,6 +94,10 @@ export function upsertOrderFromPreorder(po: PreorderOrder) {
   if (idx >= 0) orders[idx] = { ...orders[idx], ...next };
   else orders.unshift(next);
   saveOrders(orders);
+  const saved = orders.find((o) => o.id === po.id);
+  if (saved?.status === 'completed' && !saved.affiliateCommissionPaid) {
+    processOrderCommission(saved);
+  }
 }
 
 export function createInstantOrder(params: {
@@ -135,6 +140,7 @@ export function createInstantOrder(params: {
     orderId: order.id,
   });
 
+  processOrderCommission(order);
   return order;
 }
 
@@ -244,6 +250,7 @@ export function refundOrder(
     orderId: order.id,
   });
 
+  reverseOrderCommission(order.id, refundAmount);
   return { ok: true, refundAmount };
 }
 

@@ -10,6 +10,7 @@ import {
   loadCustomerSession,
 } from '../../services/customerSession';
 import { WALLET_TX_UPDATED } from '../../services/walletTransactionService';
+import { useLocaleCurrency } from '../../context/LocaleCurrencyContext';
 
 interface BuyNowModalProps {
   product: Product;
@@ -18,6 +19,7 @@ interface BuyNowModalProps {
 }
 
 export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
+  const { formatMoney } = useLocaleCurrency();
   const [balance, setBalance] = useState(() => loadCustomerSession().balance);
   const min = product.minPurchase ?? 1;
   const max = Math.min(product.maxPurchase ?? 999, product.stock);
@@ -90,7 +92,7 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
             <ProductDescriptions product={product} />
 
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-[12px] text-emerald-900">
-              <p className="font-bold">Số dư: {balance.toLocaleString('vi-VN')} đ</p>
+              <p className="font-bold">Số dư: {formatMoney(balance)}</p>
               <p className="mt-0.5">Kho hiện có: {product.stock} · Giao ngay sau thanh toán</p>
             </div>
 
@@ -105,13 +107,13 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
                 className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
               />
               <p className="mt-1 text-[11px] text-zinc-400">
-                Từ {min} đến {max} · Đơn giá {product.price.toLocaleString('vi-VN')} đ
+                Từ {min} đến {max} · Đơn giá {formatMoney(product.price)}
               </p>
             </div>
 
             <div className="rounded-xl bg-zinc-50 px-4 py-3">
               <p className="text-[11px] font-bold uppercase text-zinc-400">Tổng thanh toán</p>
-              <p className="text-xl font-black text-red-600">{total.toLocaleString('vi-VN')} đ</p>
+              <p className="text-xl font-black text-red-600">{formatMoney(total)}</p>
             </div>
 
             {error ? <p className="text-[12px] font-medium text-red-600">{error}</p> : null}

@@ -26,6 +26,9 @@ export interface CustomerOrder {
   note: string;
   deliveredContents: string[];
   preorderStatus?: PreorderStatus;
+  /** Đã tạo hoa hồng affiliate cho đơn này */
+  affiliateCommissionPaid?: boolean;
+  affiliateCommissionId?: string | null;
 }
 
 export type RefundMode = 'full' | 'partial' | 'percent';

@@ -21,6 +21,14 @@ function normalizeUser(raw: Partial<ManagedUser> & Record<string, unknown>): Man
       : 'active') as ManagedUser['status'],
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
     referralCount: Number(raw.referralCount ?? 0),
+    referralCode: (() => {
+      const code = String(raw.referralCode ?? raw.username ?? '').trim().toLowerCase();
+      return code || `user${String(raw.id ?? Date.now())}`;
+    })(),
+    referredByUserId: raw.referredByUserId != null ? String(raw.referredByUserId) : null,
+    affiliateBalance: Number(raw.affiliateBalance ?? 0),
+    affiliateTotalEarned: Number(raw.affiliateTotalEarned ?? 0),
+    affiliateRevenue: Number(raw.affiliateRevenue ?? 0),
     referralRatePercent: (() => {
       const v = raw.referralRatePercent ?? raw.referralRate;
       const n = Number(v);

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as LucideIcons from 'lucide-react';
+import { ClampedProductName } from '../../components/common/ClampedProductName';
 import {
   SOCIAL_ICON_PRESETS,
   presetIconUrl,
@@ -1401,13 +1402,13 @@ function ServiceShopBlock({
             className="bg-white"
           >
             <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full">
+              <table className="w-full min-w-[900px] table-fixed">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50/90">
                     <th className="w-[180px] px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-zinc-600">
                       Hành động
                     </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-black text-slate-700 uppercase tracking-wide">
+                    <th className="w-[36%] max-w-[360px] px-4 py-3 text-left text-[11px] font-black text-slate-700 uppercase tracking-wide">
                       Tên mặt hàng
                     </th>
                     <th className="w-[120px] whitespace-nowrap px-4 py-3 text-center text-[11px] font-black uppercase tracking-wide text-slate-700">
@@ -1476,22 +1477,22 @@ function ServiceShopBlock({
                             </button>
                         </motion.div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-start gap-3">
+                      <td className="max-w-0 px-4 py-3">
+                        <div className="flex min-w-0 items-start gap-3">
                           <motion.div
                             whileHover={{ scale: 1.05 }}
                             className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0"
                           >
                             <Box className="w-4 h-4 text-slate-400" />
                           </motion.div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                className="text-left text-[13px] font-bold leading-snug text-brand-primary hover:underline"
-                              >
-                                {item.name}
-                              </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start gap-2">
+                              <div className="min-w-0 flex-1">
+                                <ClampedProductName
+                                  name={item.name}
+                                  className="text-[13px] font-bold text-brand-primary"
+                                />
+                              </div>
                               {item.visibility === 'hidden' && (
                                 <span className="inline-block shrink-0 rounded bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
                                   Ẩn
@@ -1708,7 +1709,16 @@ function createEmptyShop(data: CreateParentCategoryInput): ServiceShop {
   };
 }
 
-export default function CreateServiceSection() {
+interface CreateServiceSectionProps {
+  /** Mở kho từ màn Đơn hàng (thiếu hàng khi giao) */
+  pendingStockNav?: { shopId: number; itemId: number } | null;
+  onPendingStockNavHandled?: () => void;
+}
+
+export default function CreateServiceSection({
+  pendingStockNav = null,
+  onPendingStockNavHandled,
+}: CreateServiceSectionProps = {}) {
   const [shops, setShops] = useState<ServiceShop[]>(() => loadServiceShops());
   const [adminView, setAdminView] = useState<'shops' | 'preorders'>('shops');
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
@@ -1717,6 +1727,12 @@ export default function CreateServiceSection() {
     saveServiceShops(shops);
   }, [shops]);
   const [stockNav, setStockNav] = useState<{ shopId: number; itemId: number } | null>(null);
+
+  useEffect(() => {
+    if (!pendingStockNav) return;
+    setStockNav(pendingStockNav);
+    onPendingStockNavHandled?.();
+  }, [pendingStockNav, onPendingStockNavHandled]);
 
   const stockContext = stockNav
     ? (() => {

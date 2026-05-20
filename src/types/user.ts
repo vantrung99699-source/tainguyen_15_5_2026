@@ -22,6 +22,16 @@ export interface ManagedUser {
   status: UserStatus;
   createdAt: string;
   referralCount: number;
+  /** Mã ref — link ?ref=CODE */
+  referralCode: string;
+  /** User giới thiệu khi đăng ký */
+  referredByUserId?: string | null;
+  /** Số dư hoa hồng có thể rút */
+  affiliateBalance: number;
+  /** Tổng hoa hồng đã nhận (lịch sử) */
+  affiliateTotalEarned: number;
+  /** Tổng doanh thu đơn cấp dưới */
+  affiliateRevenue: number;
   /** % hoa hồng giới thiệu (ẩn nếu bằng DEFAULT_REFERRAL_RATE) */
   referralRatePercent: number;
   /** % chiết khấu mua hàng */

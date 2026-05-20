@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import type { LucideIcon } from 'lucide-react';
-import { Ticket, Coins, Languages } from 'lucide-react';
+import { Ticket } from 'lucide-react';
 import { GlobalDepositPromotionSection } from './GlobalDepositPromotionSection';
 
 function SectionShell({
@@ -55,26 +55,5 @@ export function PromoCodesSection() {
   );
 }
 
-export function CurrencySection() {
-  return (
-    <SectionShell
-      title="Tiền tệ"
-      subtitle="Đơn vị tiền tệ, tỷ giá và định dạng hiển thị"
-      icon={Coins}
-    >
-      <PlaceholderCard hint="VND / USD, ký hiệu, số thập phân, tỷ giá quy đổi mặc định..." />
-    </SectionShell>
-  );
-}
-
-export function LanguageSection() {
-  return (
-    <SectionShell
-      title="Ngôn ngữ"
-      subtitle="Ngôn ngữ mặc định, đa ngôn ngữ và bản dịch giao diện"
-      icon={Languages}
-    >
-      <PlaceholderCard hint="Ngôn ngữ mặc định (VI/EN), bật đa ngôn ngữ, chỉnh chuỗi dịch menu, thông báo, email..." />
-    </SectionShell>
-  );
-}
+export { CurrencyAdminSection as CurrencySection } from './CurrencyAdminSection';
+export { LanguageAdminSection as LanguageSection } from './LanguageAdminSection';

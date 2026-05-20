@@ -1,0 +1,31 @@
+import type { TranslationEntry } from '../types/locale';
+
+/** Chuỗi UI mặc định — admin có thể ghi đè trong Translation Manager */
+export const DEFAULT_TRANSLATION_ENTRIES: TranslationEntry[] = [
+  { key: 'menu_home', group: 'menu', values: { vi: 'Trang chủ', en: 'Home', th: 'หน้าแรก' } },
+  { key: 'menu_services', group: 'menu', values: { vi: 'Dịch vụ', en: 'Services', th: 'บริการ' } },
+  { key: 'menu_products', group: 'menu', values: { vi: 'Sản phẩm', en: 'Products', th: 'สินค้า' } },
+  { key: 'menu_deposit', group: 'menu', values: { vi: 'Nạp tiền', en: 'Deposit', th: 'เติมเงิน' } },
+  { key: 'menu_history', group: 'menu', values: { vi: 'Lịch sử', en: 'History', th: 'ประวัติ' } },
+  { key: 'menu_affiliate', group: 'menu', values: { vi: 'Kiếm tiền / Affiliate', en: 'Affiliate', th: 'แอฟฟิลิเอต' } },
+  { key: 'menu_order_history', group: 'menu', values: { vi: 'Lịch sử đơn hàng', en: 'Order history', th: 'ประวัติคำสั่งซื้อ' } },
+  { key: 'menu_transactions', group: 'menu', values: { vi: 'Lịch sử giao dịch', en: 'Transactions', th: 'ธุรกรรม' } },
+  { key: 'auth_login', group: 'auth', values: { vi: 'Đăng nhập', en: 'Log in', th: 'เข้าสู่ระบบ' } },
+  { key: 'auth_register', group: 'auth', values: { vi: 'Đăng ký', en: 'Sign up', th: 'สมัคร' } },
+  { key: 'auth_logout', group: 'auth', values: { vi: 'Đăng xuất', en: 'Log out', th: 'ออกจากระบบ' } },
+  { key: 'product_buy_now', group: 'product', values: { vi: 'Mua ngay', en: 'Buy now', th: 'ซื้อเลย' } },
+  { key: 'product_preorder', group: 'product', values: { vi: 'Đặt trước', en: 'Pre-order', th: 'สั่งจอง' } },
+  { key: 'product_out_of_stock', group: 'product', values: { vi: 'Hết hàng', en: 'Out of stock', th: 'สินค้าหมด' } },
+  { key: 'product_sold', group: 'product', values: { vi: 'Đã bán', en: 'Sold', th: 'ขายแล้ว' } },
+  { key: 'product_stock', group: 'product', values: { vi: 'Kho', en: 'Stock', th: 'คลัง' } },
+  { key: 'balance_label', group: 'wallet', values: { vi: 'Số dư', en: 'Balance', th: 'ยอดคงเหลือ' } },
+  { key: 'cat_all', group: 'category', values: { vi: 'Tất cả sản phẩm', en: 'All products', th: 'สินค้าทั้งหมด' } },
+  { key: 'cat_tiktok', group: 'category', values: { vi: 'TIKTOK VIỆT', en: 'TIKTOK VIETNAM', th: 'TIKTOK เวียดนาม' } },
+  { key: 'cat_facebook', group: 'category', values: { vi: 'CLONE FACEBOOK', en: 'FACEBOOK CLONE', th: 'โคลน FACEBOOK' } },
+  { key: 'cat_gmail', group: 'category', values: { vi: 'GMAIL VIỆT - NGOẠI', en: 'GMAIL ACCOUNTS', th: 'GMAIL' } },
+  { key: 'page_order_history', group: 'page', values: { vi: 'Lịch sử đơn hàng', en: 'Order history', th: 'ประวัติคำสั่งซื้อ' } },
+  { key: 'page_transactions', group: 'page', values: { vi: 'Lịch sử giao dịch', en: 'Transaction history', th: 'ประวัติธุรกรรม' } },
+  { key: 'page_deposit', group: 'page', values: { vi: 'Nạp tiền', en: 'Deposit funds', th: 'เติมเงิน' } },
+  { key: 'currency_switch', group: 'ui', values: { vi: 'Tiền tệ', en: 'Currency', th: 'สกุลเงิน' } },
+  { key: 'language_switch', group: 'ui', values: { vi: 'Ngôn ngữ', en: 'Language', th: 'ภาษา' } },
+];

@@ -3,6 +3,7 @@ import { ShoppingCart, Info, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ProductCardStyle } from '../types/siteDesign';
 import { ProductCover } from './ProductCover';
+import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
 
 interface ProductCardProps {
   product: Product;
@@ -24,6 +25,7 @@ function BuyActions({
   onPreorder?: (product: Product) => void;
   compact?: boolean;
 }) {
+  const { t } = useLocaleCurrency();
   const hasStock = product.stock > 0;
   const showPreorder = Boolean(product.preorderEnabled && product.shopId && product.itemId);
   const buyNowEnabled = hasStock;
@@ -31,7 +33,7 @@ function BuyActions({
   if (!showPreorder && !hasStock) {
     return (
       <p className={`text-center font-bold text-zinc-400 ${compact ? 'mt-3 text-[10px]' : 'mt-4 text-[11px]'}`}>
-        Hết hàng
+        {t('product_out_of_stock', 'Hết hàng')}
       </p>
     );
   }
@@ -60,7 +62,7 @@ function BuyActions({
         className={`flex w-full items-center justify-center gap-1.5 rounded-xl font-bold transition-all ${btnBase} ${buyBtnClass}`}
       >
         <ShoppingCart className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
-        Mua ngay
+        {t('product_buy_now', 'Mua ngay')}
       </button>
       {showPreorder ? (
         <button
@@ -74,7 +76,7 @@ function BuyActions({
           }`}
         >
           <Clock className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-          Đặt trước
+          {t('product_preorder', 'Đặt trước')}
         </button>
       ) : null}
     </div>
@@ -82,6 +84,8 @@ function BuyActions({
 }
 
 function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps) {
+  const { formatMoney, t, td } = useLocaleCurrency();
+  const displayName = td('product', product.id, 'name', product.name);
   return (
     <motion.div
       initial={{ opacity: 0, x: -12 }}
@@ -102,11 +106,11 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <h3 className="line-clamp-2 text-[13px] font-black uppercase text-[#1E293B] group-hover:text-brand-primary">
-          {product.name}
+          {displayName}
         </h3>
-        <p className="mt-2 text-lg font-black text-red-600">{product.price.toLocaleString()}đ</p>
+        <p className="mt-2 text-lg font-black text-red-600">{formatMoney(product.price)}</p>
         <p className="text-[10px] font-bold text-slate-500">
-          Đã bán: {product.sold} · Kho: {product.stock}
+          {t('product_sold', 'Đã bán')}: {product.sold} · {t('product_stock', 'Kho')}: {product.stock}
         </p>
         <div className="mt-auto flex gap-2 pt-3">
           <BuyActions product={product} onBuy={onBuy} onPreorder={onPreorder} compact />
@@ -117,6 +121,8 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
 }
 
 function ProductCardCompact({ product, index, onBuy, onPreorder }: ProductCardProps) {
+  const { formatMoney, t, td } = useLocaleCurrency();
+  const displayName = td('product', product.id, 'name', product.name);
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -137,11 +143,11 @@ function ProductCardCompact({ product, index, onBuy, onPreorder }: ProductCardPr
       </div>
       <div className="flex flex-1 flex-col p-3">
         <h3 className="line-clamp-2 text-[11px] font-black uppercase group-hover:text-brand-primary">
-          {product.name}
+          {displayName}
         </h3>
-        <p className="mt-2 text-base font-black text-red-600">{product.price.toLocaleString()}đ</p>
+        <p className="mt-2 text-base font-black text-red-600">{formatMoney(product.price)}</p>
         <p className="text-[9px] font-bold text-slate-400">
-          Bán {product.sold} · Kho {product.stock}
+          {t('product_sold', 'Bán')} {product.sold} · {t('product_stock', 'Kho')} {product.stock}
         </p>
         <BuyActions product={product} onBuy={onBuy} onPreorder={onPreorder} compact />
       </div>
@@ -156,6 +162,8 @@ export default function ProductCard({
   onBuy,
   onPreorder,
 }: ProductCardProps) {
+  const { formatMoney, t, td } = useLocaleCurrency();
+  const displayName = td('product', product.id, 'name', product.name);
   if (variant === 'list') return <ProductCardList product={product} index={index} onBuy={onBuy} onPreorder={onPreorder} />;
   if (variant === 'compact')
     return <ProductCardCompact product={product} index={index} onBuy={onBuy} onPreorder={onPreorder} />;
@@ -188,21 +196,25 @@ export default function ProductCard({
 
       <div className="flex flex-1 flex-col p-5">
         <h3 className="line-clamp-2 grow text-[13px] font-black uppercase leading-snug tracking-wide text-[#1E293B] transition-colors group-hover:text-brand-primary">
-          {product.name}
+          {displayName}
         </h3>
 
         <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-4">
           <div className="flex flex-col">
             <span className="text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]">Niêm yết</span>
-            <span className="text-lg font-black text-red-600">{product.price.toLocaleString()}đ</span>
+            <span className="text-lg font-black text-red-600">{formatMoney(product.price)}</span>
           </div>
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-bold italic text-emerald-600">
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span>Đã bán: {product.sold}</span>
+              <span>
+                {t('product_sold', 'Đã bán')}: {product.sold}
+              </span>
             </div>
             <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-[10px] font-bold italic text-slate-500">
-              <span>Kho: {product.stock}</span>
+              <span>
+                {t('product_stock', 'Kho')}: {product.stock}
+              </span>
             </div>
           </div>
         </div>

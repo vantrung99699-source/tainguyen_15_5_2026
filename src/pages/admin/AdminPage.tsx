@@ -30,6 +30,7 @@ import {
   PanelTop,
   History,
   ShoppingBag,
+  Share2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import CreateServiceSection from './CreateServiceSection';
@@ -51,6 +52,7 @@ import {
 } from './AdminNotificationSections';
 import { AdminHistorySection } from './AdminHistorySection';
 import { AdminOrdersSection } from './AdminOrdersSection';
+import { AffiliateSection } from './AffiliateSection';
 import { ORDERS_UPDATED } from '../../services/orderService';
 import {
   getUnreadPendingPreorderCount,
@@ -75,9 +77,16 @@ export type AdminSection =
   | 'notify-telegram'
   | 'notify-email'
   | 'notify-user'
-  | 'history';
+  | 'history'
+  | 'affiliate';
 
-export type AppPage = 'home' | 'order-history' | 'transaction-history' | 'deposit' | 'admin';
+export type AppPage =
+  | 'home'
+  | 'order-history'
+  | 'transaction-history'
+  | 'deposit'
+  | 'affiliate'
+  | 'admin';
 
 interface AdminPageProps {
   onNavigateHome: () => void;
@@ -114,6 +123,7 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
       { id: 'create-product', label: 'Tạo sản phẩm', icon: Package },
       { id: 'payments', label: 'Quản lý thanh toán', icon: CreditCard },
       { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag },
+      { id: 'affiliate', label: 'Affiliate', icon: Share2 },
       { id: 'history', label: 'Lịch sử', icon: History },
     ],
   },
@@ -171,6 +181,10 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const [unreadPreorderCount, setUnreadPreorderCount] = useState(() =>
     getUnreadPendingPreorderCount(),
   );
+  const [pendingStockNav, setPendingStockNav] = useState<{
+    shopId: number;
+    itemId: number;
+  } | null>(null);
 
   const nav = resolveNav(activeSection);
   const ActiveIcon = nav?.leaf.icon;
@@ -476,10 +490,24 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                 >
                   {activeSection === 'statistics' && <StatisticsSection />}
                   {activeSection === 'users' && <UsersSection />}
-                  {activeSection === 'create-service' && <CreateServiceSection />}
+                  {activeSection === 'create-service' && (
+                    <CreateServiceSection
+                      pendingStockNav={pendingStockNav}
+                      onPendingStockNavHandled={() => setPendingStockNav(null)}
+                    />
+                  )}
                   {activeSection === 'create-product' && <CreateProductSection />}
                   {activeSection === 'payments' && <PaymentsSection />}
-                  {activeSection === 'orders' && <AdminOrdersSection />}
+                  {activeSection === 'orders' && (
+                    <AdminOrdersSection
+                      onNavigateToStock={(shopId, itemId) => {
+                        setPendingStockNav({ shopId, itemId });
+                        setActiveSection('create-service');
+                        setSidebarOpen(false);
+                      }}
+                    />
+                  )}
+                  {activeSection === 'affiliate' && <AffiliateSection />}
                   {activeSection === 'settings-header' && <HeaderSettingsSection />}
                   {activeSection === 'design' && <DesignSection />}
                   {activeSection === 'promotions' && <PromotionsSection />}

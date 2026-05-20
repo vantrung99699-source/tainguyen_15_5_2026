@@ -11,19 +11,21 @@ import {
   TRANSACTION_TYPE_LABELS,
   TRANSACTION_TYPE_STYLES,
 } from '../components/wallet/transactionLabels';
+import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
 
 const ALL_TYPES: TransactionType[] = ['deposit', 'credit', 'debit', 'purchase', 'refund'];
-
-function formatMoney(amount: number, signed = true) {
-  const prefix = signed && amount > 0 ? '+' : '';
-  return `${prefix}${amount.toLocaleString('vi-VN')}\u00a0đ`;
-}
 
 interface TransactionHistoryPageProps {
   onBack?: () => void;
 }
 
 export default function TransactionHistoryPage({ onBack }: TransactionHistoryPageProps) {
+  const { formatMoney: fmt, t } = useLocaleCurrency();
+  const formatMoney = (amount: number, signed = true) => {
+    const prefix = signed && amount > 0 ? '+' : signed && amount < 0 ? '' : '';
+    const abs = Math.abs(amount);
+    return `${prefix}${fmt(abs)}`;
+  };
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
   const [transactions, setTransactions] = useState<WalletTransaction[]>(() =>
@@ -63,7 +65,9 @@ export default function TransactionHistoryPage({ onBack }: TransactionHistoryPag
             <ChevronLeft className="h-5 w-5 text-slate-600" />
           </button>
           <motion.div>
-            <h1 className="text-2xl font-black text-slate-800">Lịch sử giao dịch</h1>
+            <h1 className="text-2xl font-black text-slate-800">
+              {t('page_transactions', 'Lịch sử giao dịch')}
+            </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500">
               Nạp tiền, cộng/trừ tiền, mua hàng và hoàn tiền
             </p>
