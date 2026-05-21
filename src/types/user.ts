@@ -22,7 +22,7 @@ export interface ManagedUser {
   status: UserStatus;
   createdAt: string;
   referralCount: number;
-  /** Mã ref — link ?ref=CODE */
+  /** Mã giới thiệu công khai — dùng trong link /i/{code}, không lộ username */
   referralCode: string;
   /** User giới thiệu khi đăng ký */
   referredByUserId?: string | null;

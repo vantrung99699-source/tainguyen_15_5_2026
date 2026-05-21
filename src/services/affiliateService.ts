@@ -13,6 +13,7 @@ import { DEFAULT_REFERRAL_RATE } from '../types/user';
 import { initialManagedUsers } from '../pages/admin/userData';
 import {
   findUserById,
+  ensureUserReferralCode,
   getReferralRate,
   loadManagedUsers,
   saveManagedUsers,
@@ -105,12 +106,43 @@ function setRefCookie(code: string, ttlDays: number) {
   document.cookie = `${REF_COOKIE}=${encodeURIComponent(code)};path=/;max-age=${maxAge};SameSite=Lax`;
 }
 
-export function captureReferralFromUrl(search?: string) {
+export const AFFILIATE_INVITE_PATH_PREFIX = '/i/';
+
+export function parseReferralCodeFromLocation(
+  pathname = window.location.pathname,
+  search = window.location.search,
+): string | null {
+  const params = new URLSearchParams(search);
+  const legacyRef = params.get('ref')?.trim();
+  if (legacyRef) return legacyRef;
+
+  const inviteMatch = pathname.match(/^\/i\/([^/?#]+)/i);
+  if (inviteMatch?.[1]) {
+    return decodeURIComponent(inviteMatch[1]).trim();
+  }
+
+  const registerMatch = pathname.match(/^\/register\/([^/?#]+)/i);
+  if (registerMatch?.[1]) {
+    return decodeURIComponent(registerMatch[1]).trim();
+  }
+
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length >= 2 && segments[0] !== 'trang' && segments[0] !== 'admin') {
+    const last = decodeURIComponent(segments[segments.length - 1] ?? '').trim();
+    if (last && resolveReferrerByCode(last)) return last;
+  }
+
+  return null;
+}
+
+export function captureReferralFromUrl(search?: string, pathname?: string) {
   const settings = loadAffiliateSettings();
   if (!settings.enabled) return;
 
-  const params = new URLSearchParams(search ?? window.location.search);
-  const ref = params.get('ref')?.trim();
+  const ref = parseReferralCodeFromLocation(
+    pathname ?? window.location.pathname,
+    search ?? window.location.search,
+  );
   if (!ref) return;
 
   const referrer = resolveReferrerByCode(ref);
@@ -197,8 +229,13 @@ export function attachReferrerOnRegister(
   return { ok: true, referrerId: referrer.id };
 }
 
+export function getPublicReferralCode(userId: string): string {
+  return ensureUserReferralCode(userId, initialManagedUsers);
+}
+
 export function buildRegisterAffiliateUrl(referralCode: string, origin = window.location.origin) {
-  return `${origin}/register?ref=${encodeURIComponent(referralCode)}`;
+  const code = encodeURIComponent(referralCode.trim().toLowerCase());
+  return `${origin}${AFFILIATE_INVITE_PATH_PREFIX}${code}`;
 }
 
 export function buildCampaignUrl(
@@ -207,10 +244,21 @@ export function buildCampaignUrl(
   shortCode?: string,
   origin = window.location.origin,
 ) {
-  const path = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
-  const params = new URLSearchParams({ ref: referralCode });
+  const code = encodeURIComponent(referralCode.trim().toLowerCase());
+  const queryIndex = targetPath.indexOf('?');
+  const pathOnly = (queryIndex >= 0 ? targetPath.slice(0, queryIndex) : targetPath).trim() || '/';
+  const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+  const existingQuery = queryIndex >= 0 ? targetPath.slice(queryIndex + 1) : '';
+  const params = new URLSearchParams(existingQuery);
   if (shortCode) params.set('c', shortCode);
-  return `${origin}${path}?${params.toString()}`;
+  const qs = params.toString();
+
+  if (normalizedPath === '/' || normalizedPath === '/register') {
+    return `${origin}${AFFILIATE_INVITE_PATH_PREFIX}${code}${qs ? `?${qs}` : ''}`;
+  }
+
+  const base = `${origin}${normalizedPath.replace(/\/$/, '')}/${code}`;
+  return qs ? `${base}?${qs}` : base;
 }
 
 // ——— Commissions storage ———
@@ -585,7 +633,7 @@ export function getAffiliateOverviewForUser(userId: string) {
     affiliateTotalEarned: user?.affiliateTotalEarned ?? 0,
     pendingCommission,
     creditedCommission,
-    referralCode: user?.referralCode ?? '',
+    referralCode: user ? ensureUserReferralCode(userId, initialManagedUsers) : '',
   };
 }
 

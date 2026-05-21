@@ -22,6 +22,7 @@ import {
   getAffiliateOverviewForUser,
   getCampaignsForUser,
   getCommissionsForReferrer,
+  getPublicReferralCode,
   getWithdrawalsForUser,
   loadAffiliateSettings,
   requestWithdrawal,
@@ -72,8 +73,8 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
   }, [session.userId]);
 
   const mainLink = useMemo(
-    () => buildRegisterAffiliateUrl(overview.referralCode || session.username),
-    [overview.referralCode, session.username],
+    () => buildRegisterAffiliateUrl(getPublicReferralCode(session.userId)),
+    [session.userId],
   );
 
   const copyText = async (text: string, key: string) => {
@@ -200,9 +201,10 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-              <p className="mb-2 text-sm font-black text-slate-800">Link Affiliate mẫu</p>
+              <p className="mb-2 text-sm font-black text-slate-800">Link giới thiệu</p>
               <p className="mb-3 text-xs text-slate-500">
-                Cookie lưu {settings.cookieTtlDays} ngày — khách quay lại mua vẫn tính hoa hồng
+                Chia sẻ link đăng ký — cookie lưu {settings.cookieTtlDays} ngày, khách quay lại mua
+                vẫn tính hoa hồng
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <code className="flex-1 break-all rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
@@ -263,7 +265,7 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
               ) : (
                 campaigns.map((c) => {
                   const url = buildCampaignUrl(
-                    overview.referralCode || session.username,
+                    getPublicReferralCode(session.userId),
                     c.targetPath,
                     c.shortCode,
                   );

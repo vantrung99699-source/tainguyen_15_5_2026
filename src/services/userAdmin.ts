@@ -4,6 +4,39 @@ import { loadCustomerSession, saveCustomerSession } from './customerSession';
 
 const USERS_KEY = 'taphoammo_managed_users';
 
+export function generateReferralCode(existingCodes: Iterable<string> = []): string {
+  const taken = new Set(Array.from(existingCodes, (c) => c.toLowerCase()));
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  for (let attempt = 0; attempt < 64; attempt++) {
+    let code = '';
+    for (let i = 0; i < 10; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    if (!taken.has(code)) return code;
+  }
+  return `r${Date.now().toString(36).slice(-8)}`;
+}
+
+function referralCodeMatchesUsername(code: string, username: string): boolean {
+  return code.trim().toLowerCase() === username.trim().toLowerCase();
+}
+
+/** Mã giới thiệu công khai — không trùng username, tự tạo nếu thiếu */
+export function ensureUserReferralCode(userId: string, fallback: ManagedUser[]): string {
+  const users = loadManagedUsers(fallback);
+  const idx = users.findIndex((u) => u.id === userId);
+  if (idx < 0) return '';
+  const user = users[idx];
+  if (user.referralCode && !referralCodeMatchesUsername(user.referralCode, user.username)) {
+    return user.referralCode;
+  }
+  const taken = new Set(users.map((u) => u.referralCode.toLowerCase()).filter(Boolean));
+  const nextCode = generateReferralCode(taken);
+  users[idx] = { ...user, referralCode: nextCode };
+  saveManagedUsers(users);
+  return nextCode;
+}
+
 function normalizeUser(raw: Partial<ManagedUser> & Record<string, unknown>): ManagedUser {
   return {
     id: String(raw.id ?? ''),
@@ -22,8 +55,10 @@ function normalizeUser(raw: Partial<ManagedUser> & Record<string, unknown>): Man
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
     referralCount: Number(raw.referralCount ?? 0),
     referralCode: (() => {
-      const code = String(raw.referralCode ?? raw.username ?? '').trim().toLowerCase();
-      return code || `user${String(raw.id ?? Date.now())}`;
+      const username = String(raw.username ?? '').trim().toLowerCase();
+      const code = String(raw.referralCode ?? '').trim().toLowerCase();
+      if (code && !referralCodeMatchesUsername(code, username)) return code;
+      return code || generateReferralCode();
     })(),
     referredByUserId: raw.referredByUserId != null ? String(raw.referredByUserId) : null,
     affiliateBalance: Number(raw.affiliateBalance ?? 0),

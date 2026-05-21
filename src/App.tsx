@@ -79,6 +79,7 @@ export default function App() {
       const slug = parseExtraPageSlugFromPath();
       setExtraPageSlug(slug);
       if (slug) setCurrentPage('home');
+      captureReferralFromUrl();
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
