@@ -37,6 +37,7 @@ import CreateServiceSection from './CreateServiceSection';
 import PaymentsSection from './PaymentsSection';
 import UsersSection from './UsersSection';
 import { HeaderSettingsSection } from './GeneralSettingsSection';
+import { HomeAnnouncementsSection } from './HomeAnnouncementsSection';
 import { DesignSection } from './DesignSection';
 import {
   PromotionsSection,
@@ -68,6 +69,7 @@ export type AdminSection =
   | 'payments'
   | 'orders'
   | 'settings-header'
+  | 'settings-home-announcements'
   | 'design'
   | 'promotions'
   | 'promo-codes'
@@ -86,6 +88,8 @@ export type AppPage =
   | 'transaction-history'
   | 'deposit'
   | 'affiliate'
+  | 'notifications'
+  | 'account'
   | 'admin';
 
 interface AdminPageProps {
@@ -134,7 +138,10 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
         groupId: GENERAL_SETTINGS_GROUP_ID,
         label: 'Cài đặt chung',
         icon: Settings,
-        children: [{ id: 'settings-header', label: 'Cài header', icon: PanelTop }],
+        children: [
+          { id: 'settings-header', label: 'Cài header', icon: PanelTop },
+          { id: 'settings-home-announcements', label: 'Thông báo trang chủ', icon: Home },
+        ],
       },
       { id: 'design', label: 'Thiết kế', icon: Palette },
       { id: 'promotions', label: 'Khuyến mãi', icon: Megaphone },
@@ -190,7 +197,7 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const ActiveIcon = nav?.leaf.icon;
 
   useEffect(() => {
-    if (activeSection === 'settings-header') {
+    if (activeSection === 'settings-header' || activeSection === 'settings-home-announcements') {
       setExpandedGroups((prev) => new Set(prev).add(GENERAL_SETTINGS_GROUP_ID));
     }
   }, [activeSection]);
@@ -509,6 +516,7 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                   )}
                   {activeSection === 'affiliate' && <AffiliateSection />}
                   {activeSection === 'settings-header' && <HeaderSettingsSection />}
+                  {activeSection === 'settings-home-announcements' && <HomeAnnouncementsSection />}
                   {activeSection === 'design' && <DesignSection />}
                   {activeSection === 'promotions' && <PromotionsSection />}
                   {activeSection === 'promo-codes' && <PromoCodesSection />}

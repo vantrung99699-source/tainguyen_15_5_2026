@@ -18,6 +18,10 @@ import {
   saveManagedUsers,
 } from './userAdmin';
 import { loadCustomerOrders, ORDERS_UPDATED } from './orderService';
+import {
+  dispatchAffiliateCredit,
+  dispatchWithdrawalRequest,
+} from './notificationDispatcher';
 
 const SETTINGS_KEY = 'taphoammo_affiliate_settings';
 const COMMISSIONS_KEY = 'taphoammo_affiliate_commissions';
@@ -315,6 +319,11 @@ export function processOrderCommission(order: CustomerOrder): AffiliateCommissio
       affiliateBalance: referrer.affiliateBalance + commissionAmount,
       affiliateTotalEarned: referrer.affiliateTotalEarned + commissionAmount,
     });
+    void dispatchAffiliateCredit({
+      userId: referrer.id,
+      amount: commissionAmount,
+      orderId: order.id,
+    });
   } else {
     patchUser(referrer.id, revPatch);
   }
@@ -464,6 +473,11 @@ export function requestWithdrawal(params: {
     processedAt: null,
   };
   saveWithdrawals([withdrawal, ...loadWithdrawals()]);
+  void dispatchWithdrawalRequest({
+    withdrawalId: withdrawal.id,
+    username: params.username,
+    amount,
+  });
   return { ok: true, withdrawal };
 }
 

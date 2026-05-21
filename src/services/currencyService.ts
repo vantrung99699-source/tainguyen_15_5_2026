@@ -159,6 +159,9 @@ export function formatCurrencyAmount(amountInCurrency: number, currency: Currenc
 export function formatBaseMoney(amountVnd: number, currencyCode?: string): string {
   const code = currencyCode ?? loadCustomerCurrencyCode();
   const currency = getCurrencyByCode(code) ?? getBaseCurrency();
+  if (!currency || currency.basePerUnit <= 0) {
+    return `${Math.round(amountVnd).toLocaleString('vi-VN')} đ`;
+  }
   const converted = convertFromBase(amountVnd, currency);
   return formatCurrencyAmount(converted, currency);
 }

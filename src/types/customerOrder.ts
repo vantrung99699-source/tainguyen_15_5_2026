@@ -24,6 +24,10 @@ export interface CustomerOrder {
   status: CustomerOrderStatus;
   createdAt: string;
   note: string;
+  /** Tổng trước giảm */
+  subtotalAmount?: number;
+  discountAmount?: number;
+  promoCode?: string | null;
   deliveredContents: string[];
   preorderStatus?: PreorderStatus;
   /** Đã tạo hoa hồng affiliate cho đơn này */

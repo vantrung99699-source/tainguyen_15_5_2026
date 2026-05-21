@@ -1,6 +1,8 @@
 import type { PreorderOrder, PreorderStatus } from '../types/preorder';
 import type { SaleMode, ServiceItem, ServiceShop } from '../types/serviceShop';
 import { loadCustomerSession } from './customerSession';
+import type { AppliedPromoResult } from '../types/promoCode';
+import { recordPromoUsage } from './promoCodeService';
 import { createPreorderOrder, refundOrder, upsertOrderFromPreorder } from './orderService';
 import {
   findShopItem,
@@ -175,6 +177,7 @@ export function createPreorder(params: {
   quantity: number;
   /** Số ngày khách chọn — quá hạn chưa xác nhận sẽ tự hoàn tiền */
   waitDays: number;
+  appliedPromo?: AppliedPromoResult | null;
 }): { ok: true; order: PreorderOrder } | { ok: false; error: string } {
   processExpiredPreorders();
   const session = loadCustomerSession();
@@ -200,7 +203,13 @@ export function createPreorder(params: {
     };
   }
 
-  const totalAmount = item.price * params.quantity;
+  const subtotalAmount = item.price * params.quantity;
+  const promo = params.appliedPromo;
+  const discountAmount = promo?.discountAmount ?? 0;
+  const totalAmount = promo?.total ?? subtotalAmount;
+  if (promo && (promo.subtotal !== subtotalAmount || promo.total !== totalAmount)) {
+    return { ok: false, error: 'Mã khuyến mãi không còn khớp với đơn — áp dụng lại.' };
+  }
   if (session.balance < totalAmount) {
     return { ok: false, error: 'Số dư không đủ để đặt trước.' };
   }
@@ -227,6 +236,9 @@ export function createPreorder(params: {
     quantity: params.quantity,
     unitPrice: item.price,
     totalAmount,
+    subtotalAmount,
+    discountAmount,
+    promoCode: promo?.code ?? null,
     maxWaitDays: waitDays,
     createdAt: new Date().toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -239,6 +251,16 @@ export function createPreorder(params: {
   const orders = [...loadPreorders(), order];
   savePreorders(orders);
   createPreorderOrder(order);
+
+  if (promo) {
+    recordPromoUsage({
+      promoId: promo.promoId,
+      code: promo.code,
+      userId: session.userId,
+      orderId: order.id,
+      discountAmount,
+    });
+  }
 
   return { ok: true, order };
 }

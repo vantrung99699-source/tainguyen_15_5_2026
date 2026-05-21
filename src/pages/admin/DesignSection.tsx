@@ -46,7 +46,7 @@ function OptionCards<T extends string>({
   return (
     <div>
       <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-zinc-500">{label}</p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {options.map((opt) => (
           <button
             key={opt.id}
@@ -195,8 +195,9 @@ export function DesignSection() {
           onChange={(productCardStyle) => patch({ productCardStyle })}
           options={[
             { id: 'grid', title: 'Lưới đầy đủ', desc: 'Ảnh lớn, đủ nút (mặc định)' },
-            { id: 'compact', title: 'Gọn', desc: 'Thẻ nhỏ, ít chi tiết' },
-            { id: 'list', title: 'Danh sách', desc: 'Hàng ngang, dễ quét' },
+            { id: 'compact', title: 'Gọn', desc: 'Thẻ nhỏ, có ảnh' },
+            { id: 'list', title: 'Danh sách', desc: 'Hàng ngang, có ảnh' },
+            { id: 'no-cover', title: 'Không ảnh', desc: 'Chỉ tên, mô tả, giá — không hiện ảnh' },
           ]}
         />
         <OptionCards

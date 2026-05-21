@@ -38,7 +38,7 @@ export function normalizeSiteDesign(raw: Partial<SiteDesignConfig>): SiteDesignC
     pageBg: String(raw.pageBg ?? DEFAULT_SITE_DESIGN.pageBg),
     productCardStyle: pickEnum(
       raw.productCardStyle,
-      ['grid', 'compact', 'list'] as const,
+      ['grid', 'compact', 'list', 'no-cover'] as const,
       DEFAULT_SITE_DESIGN.productCardStyle,
     ),
     productGridLayout: pickEnum(

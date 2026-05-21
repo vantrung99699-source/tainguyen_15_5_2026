@@ -1,4 +1,4 @@
-export type ProductCardStyle = 'grid' | 'compact' | 'list';
+export type ProductCardStyle = 'grid' | 'compact' | 'list' | 'no-cover';
 export type ProductGridLayout = 'grid-4' | 'grid-3' | 'list';
 export type CategorySectionLayout = 'blocks' | 'list';
 export type CategoryFilterLayout = 'grid' | 'sidebar';

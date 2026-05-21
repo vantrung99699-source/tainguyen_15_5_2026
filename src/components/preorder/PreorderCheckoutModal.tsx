@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Clock, X } from 'lucide-react';
@@ -10,6 +10,10 @@ import {
   loadCustomerSession,
 } from '../../services/customerSession';
 import { WALLET_TX_UPDATED } from '../../services/walletTransactionService';
+import { useLocaleCurrency } from '../../context/LocaleCurrencyContext';
+import type { AppliedPromoResult } from '../../types/promoCode';
+import { validatePromoCode } from '../../services/promoCodeService';
+import { PromoCodeField } from '../storefront/PromoCodeField';
 
 interface PreorderCheckoutModalProps {
   product: Product;
@@ -18,6 +22,7 @@ interface PreorderCheckoutModalProps {
 }
 
 export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderCheckoutModalProps) {
+  const { formatMoney } = useLocaleCurrency();
   const [balance, setBalance] = useState(() => loadCustomerSession().balance);
   const min = product.minPurchase ?? 1;
   const max = product.maxPurchase ?? 999;
@@ -25,6 +30,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
   const defaultWait = Math.min(3, maxWaitDays);
   const [quantity, setQuantity] = useState(min);
   const [waitDays, setWaitDays] = useState(defaultWait);
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromoResult | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -37,7 +43,22 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
     };
   }, []);
 
-  const total = product.price * quantity;
+  const subtotal = useMemo(() => product.price * quantity, [product.price, quantity]);
+
+  useEffect(() => {
+    if (!appliedPromo) return;
+    const session = loadCustomerSession();
+    const r = validatePromoCode({
+      code: appliedPromo.code,
+      userId: session.userId,
+      subtotal,
+      orderKind: 'preorder',
+    });
+    if (r.ok) setAppliedPromo(r.result);
+    else setAppliedPromo(null);
+  }, [subtotal, appliedPromo?.code]);
+
+  const total = appliedPromo?.total ?? subtotal;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +71,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
       itemId: product.itemId,
       quantity,
       waitDays,
+      appliedPromo,
     });
     if (!result.ok) {
       setError(result.error);
@@ -91,7 +113,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
             <ProductDescriptions product={product} />
 
             <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2.5 text-[12px] text-violet-900">
-              <p className="font-bold">Số dư: {balance.toLocaleString('vi-VN')} đ</p>
+              <p className="font-bold">Số dư: {formatMoney(balance)}</p>
               <p className="mt-1 flex items-center gap-1 text-violet-800">
                 <Clock className="h-3.5 w-3.5" />
                 Bạn chọn thời gian chờ — quá hạn chưa xác nhận sẽ tự hoàn tiền
@@ -111,7 +133,7 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
                 className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
               />
               <p className="mt-1 text-[11px] text-zinc-400">
-                Sau {waitDays} ngày nếu admin chưa xác nhận → tự động hoàn {total.toLocaleString('vi-VN')} đ
+                Sau {waitDays} ngày nếu admin chưa xác nhận → tự động hoàn {formatMoney(total)}
               </p>
             </div>
 
@@ -126,13 +148,32 @@ export function PreorderCheckoutModal({ product, onClose, onSuccess }: PreorderC
                 className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
               />
               <p className="mt-1 text-[11px] text-zinc-400">
-                Từ {min} đến {max} · Đơn giá {product.price.toLocaleString('vi-VN')} đ
+                Từ {min} đến {max} · Đơn giá {formatMoney(product.price)}
               </p>
             </div>
 
-            <div className="rounded-xl bg-zinc-50 px-4 py-3">
+            <PromoCodeField
+              subtotal={subtotal}
+              orderKind="preorder"
+              applied={appliedPromo}
+              onApplied={setAppliedPromo}
+            />
+
+            <div className="rounded-xl bg-zinc-50 px-4 py-3 space-y-1">
+              {appliedPromo ? (
+                <>
+                  <p className="flex justify-between text-[12px] text-zinc-500">
+                    <span>Tạm tính</span>
+                    <span>{formatMoney(subtotal)}</span>
+                  </p>
+                  <p className="flex justify-between text-[12px] font-bold text-emerald-600">
+                    <span>Giảm ({appliedPromo.code})</span>
+                    <span>-{formatMoney(appliedPromo.discountAmount)}</span>
+                  </p>
+                </>
+              ) : null}
               <p className="text-[11px] font-bold uppercase text-zinc-400">Tổng thanh toán</p>
-              <p className="text-xl font-black text-red-600">{total.toLocaleString('vi-VN')} đ</p>
+              <p className="text-xl font-black text-red-600">{formatMoney(total)}</p>
               <p className="mt-1 text-[11px] text-zinc-500">
                 Tiền tạm giữ — hoàn lại nếu bị từ chối, quá hạn, hoặc bạn hủy trước khi admin xác nhận
               </p>

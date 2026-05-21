@@ -7,8 +7,11 @@ import OrderHistory from './pages/OrderHistory';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import DepositPage from './pages/DepositPage';
 import AffiliatePage from './pages/AffiliatePage';
+import NotificationsPage from './pages/NotificationsPage';
+import CustomerAccountPage from './pages/CustomerAccountPage';
+import { ensureDemoInAppNotifications } from './data/demoNotificationsSeed';
+import { NotificationPopupHost } from './components/notifications/NotificationPopupHost';
 import { captureReferralFromUrl } from './services/affiliateService';
-import { CATEGORIES } from './constants';
 import { ensureCategoryTranslations } from './services/localeService';
 import ExtraPageView from './pages/ExtraPageView';
 import {
@@ -85,6 +88,7 @@ export default function App() {
     ensureDemoCustomerHistory();
     ensureDemoAffiliateCommissions();
     ensureCategoryTranslations(CATEGORIES.map((c) => ({ id: c.id, name: c.name })));
+    ensureDemoInAppNotifications();
     captureReferralFromUrl();
   }, []);
 
@@ -165,11 +169,19 @@ export default function App() {
   const GroupedProducts = useMemo(() => {
     if (activeCategory !== 'all') return null;
 
-    const sectionCardStyle = design.categorySectionLayout === 'list' ? 'list' : cardStyle;
+    const sectionCardStyle =
+      design.productCardStyle === 'no-cover'
+        ? 'no-cover'
+        : design.categorySectionLayout === 'list'
+          ? 'list'
+          : cardStyle;
     const sectionGridClass =
       design.categorySectionLayout === 'list'
         ? 'flex flex-col gap-4'
-        : getProductGridClass(design.productGridLayout === 'list' ? 'list' : design.productGridLayout);
+        : getProductGridClass(
+            design.productGridLayout === 'list' ? 'list' : design.productGridLayout,
+            design.productCardStyle,
+          );
 
     const categoryKeys = [...new Set(products.map((p) => p.category))];
 
@@ -223,7 +235,16 @@ export default function App() {
         </div>
       );
     });
-  }, [activeCategory, cardStyle, design.categorySectionLayout, design.productGridLayout, products, handleBuy, handlePreorder]);
+  }, [
+    activeCategory,
+    cardStyle,
+    design.categorySectionLayout,
+    design.productGridLayout,
+    design.productCardStyle,
+    products,
+    handleBuy,
+    handlePreorder,
+  ]);
 
   if (currentPage === 'admin') {
     return <AdminPage onNavigateHome={() => setCurrentPage('home')} />;
@@ -231,6 +252,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: design.pageBg }}>
+      <NotificationPopupHost />
       <Navbar
         onNavigate={(page) => {
           setExtraPageSlug(null);
@@ -262,6 +284,10 @@ export default function App() {
           <DepositPage />
         ) : currentPage === 'affiliate' ? (
           <AffiliatePage onBack={() => setCurrentPage('home')} />
+        ) : currentPage === 'notifications' ? (
+          <NotificationsPage onBack={() => setCurrentPage('home')} />
+        ) : currentPage === 'account' ? (
+          <CustomerAccountPage onBack={() => setCurrentPage('home')} />
         ) : (
           <>
             <HeroBanner />
@@ -289,7 +315,9 @@ export default function App() {
             </div>
           ) : (
             <>
-              <motion.div className={getProductGridClass(design.productGridLayout)}>
+              <motion.div
+                className={getProductGridClass(design.productGridLayout, design.productCardStyle)}
+              >
                 <AnimatePresence>
                   {displayedProducts.map((product, index) => (
                     <ProductCard

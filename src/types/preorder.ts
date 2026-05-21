@@ -16,6 +16,9 @@ export interface PreorderOrder {
   quantity: number;
   unitPrice: number;
   totalAmount: number;
+  subtotalAmount?: number;
+  discountAmount?: number;
+  promoCode?: string | null;
   maxWaitDays: number;
   createdAt: string;
   expiresAt: string;

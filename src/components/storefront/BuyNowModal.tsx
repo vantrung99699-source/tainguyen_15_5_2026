@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { ShoppingCart, X } from 'lucide-react';
@@ -11,6 +11,9 @@ import {
 } from '../../services/customerSession';
 import { WALLET_TX_UPDATED } from '../../services/walletTransactionService';
 import { useLocaleCurrency } from '../../context/LocaleCurrencyContext';
+import type { AppliedPromoResult } from '../../types/promoCode';
+import { validatePromoCode } from '../../services/promoCodeService';
+import { PromoCodeField } from './PromoCodeField';
 
 interface BuyNowModalProps {
   product: Product;
@@ -24,6 +27,7 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
   const min = product.minPurchase ?? 1;
   const max = Math.min(product.maxPurchase ?? 999, product.stock);
   const [quantity, setQuantity] = useState(min);
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromoResult | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -36,7 +40,22 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
     };
   }, []);
 
-  const total = product.price * quantity;
+  const subtotal = useMemo(() => product.price * quantity, [product.price, quantity]);
+
+  useEffect(() => {
+    if (!appliedPromo) return;
+    const session = loadCustomerSession();
+    const r = validatePromoCode({
+      code: appliedPromo.code,
+      userId: session.userId,
+      subtotal,
+      orderKind: 'instant',
+    });
+    if (r.ok) setAppliedPromo(r.result);
+    else setAppliedPromo(null);
+  }, [subtotal, appliedPromo?.code]);
+
+  const total = appliedPromo?.total ?? subtotal;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +67,7 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
       shopId: product.shopId,
       itemId: product.itemId,
       quantity,
+      appliedPromo,
     });
     if (!result.ok) {
       setError(result.error);
@@ -111,7 +131,26 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
               </p>
             </div>
 
-            <div className="rounded-xl bg-zinc-50 px-4 py-3">
+            <PromoCodeField
+              subtotal={subtotal}
+              orderKind="instant"
+              applied={appliedPromo}
+              onApplied={setAppliedPromo}
+            />
+
+            <div className="rounded-xl bg-zinc-50 px-4 py-3 space-y-1">
+              {appliedPromo ? (
+                <>
+                  <p className="flex justify-between text-[12px] text-zinc-500">
+                    <span>Tạm tính</span>
+                    <span>{formatMoney(subtotal)}</span>
+                  </p>
+                  <p className="flex justify-between text-[12px] font-bold text-emerald-600">
+                    <span>Giảm ({appliedPromo.code})</span>
+                    <span>-{formatMoney(appliedPromo.discountAmount)}</span>
+                  </p>
+                </>
+              ) : null}
               <p className="text-[11px] font-bold uppercase text-zinc-400">Tổng thanh toán</p>
               <p className="text-xl font-black text-red-600">{formatMoney(total)}</p>
             </div>

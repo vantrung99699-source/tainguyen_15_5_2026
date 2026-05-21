@@ -3,7 +3,23 @@ import type { PreorderOrder, PreorderStatus } from '../types/preorder';
 import { loadCustomerSession } from './customerSession';
 import { addWalletTransaction } from './walletTransactionService';
 import { adjustUserBalanceById } from './userAdmin';
-import { processOrderCommission, reverseOrderCommission } from './affiliateService';
+/** Dynamic import tránh vòng lặp orderService ↔ affiliateService (gây màn trắng) */
+function afterOrderCompleted(order: CustomerOrder) {
+  void import('./affiliateService').then((m) => m.processOrderCommission(order));
+  void import('./notificationDispatcher').then((m) =>
+    m.dispatchOrderCompleted({
+      orderId: order.id,
+      userId: order.userId,
+      username: order.username,
+      productName: order.productName,
+      totalAmount: order.totalAmount,
+    }),
+  );
+}
+
+function afterOrderRefunded(orderId: string, refundAmount: number) {
+  void import('./affiliateService').then((m) => m.reverseOrderCommission(orderId, refundAmount));
+}
 
 const PREORDER_STORAGE_KEY = 'taphoammo_preorders';
 
@@ -78,6 +94,9 @@ function preorderToCustomerOrder(po: PreorderOrder): CustomerOrder {
     quantity: po.quantity,
     unitPrice: po.unitPrice,
     totalAmount: po.totalAmount,
+    subtotalAmount: po.subtotalAmount ?? po.totalAmount,
+    discountAmount: po.discountAmount ?? 0,
+    promoCode: po.promoCode ?? null,
     refundedAmount: refunded ? po.totalAmount : 0,
     status: preorderStatusToOrderStatus(po.status),
     createdAt: po.createdAt,
@@ -96,7 +115,7 @@ export function upsertOrderFromPreorder(po: PreorderOrder) {
   saveOrders(orders);
   const saved = orders.find((o) => o.id === po.id);
   if (saved?.status === 'completed' && !saved.affiliateCommissionPaid) {
-    processOrderCommission(saved);
+    afterOrderCompleted(saved);
   }
 }
 
@@ -106,6 +125,9 @@ export function createInstantOrder(params: {
   productName: string;
   quantity: number;
   unitPrice: number;
+  subtotalAmount?: number;
+  discountAmount?: number;
+  promoCode?: string | null;
   totalAmount: number;
   deliveredContents: string[];
 }): CustomerOrder {
@@ -121,10 +143,15 @@ export function createInstantOrder(params: {
     quantity: params.quantity,
     unitPrice: params.unitPrice,
     totalAmount: params.totalAmount,
+    subtotalAmount: params.subtotalAmount ?? params.totalAmount,
+    discountAmount: params.discountAmount ?? 0,
+    promoCode: params.promoCode ?? null,
     refundedAmount: 0,
     status: 'completed',
     createdAt: new Date().toISOString(),
-    note: 'Giao hàng tự động',
+    note: params.promoCode
+      ? `Giao hàng tự động · Mã ${params.promoCode} (-${(params.discountAmount ?? 0).toLocaleString('vi-VN')}đ)`
+      : 'Giao hàng tự động',
     deliveredContents: params.deliveredContents,
   };
   const orders = [order, ...loadCustomerOrders()];
@@ -140,7 +167,7 @@ export function createInstantOrder(params: {
     orderId: order.id,
   });
 
-  processOrderCommission(order);
+  afterOrderCompleted(order);
   return order;
 }
 
@@ -250,7 +277,7 @@ export function refundOrder(
     orderId: order.id,
   });
 
-  reverseOrderCommission(order.id, refundAmount);
+  afterOrderRefunded(order.id, refundAmount);
   return { ok: true, refundAmount };
 }
 

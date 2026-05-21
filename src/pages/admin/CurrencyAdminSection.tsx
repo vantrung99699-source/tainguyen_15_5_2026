@@ -253,26 +253,48 @@ export function CurrencyAdminSection() {
                 onChange={(e) => setForm({ ...form, basePerUnit: Number(e.target.value) })}
                 className="w-full rounded-xl border px-3 py-2 text-sm"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={4}
-                  placeholder="Số thập phân"
-                  value={form.decimals}
-                  onChange={(e) => setForm({ ...form, decimals: Number(e.target.value) })}
-                  className="rounded-xl border px-3 py-2 text-sm"
-                />
-                <select
-                  value={form.rateMode}
-                  onChange={(e) =>
-                    setForm({ ...form, rateMode: e.target.value as CurrencyRateMode })
-                  }
-                  className="rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value="manual">Tự cấu hình (Manual)</option>
-                  <option value="auto">Cập nhật qua API (Auto)</option>
-                </select>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase text-zinc-400">
+                    Số chữ số thập phân
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={4}
+                    value={form.decimals}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        decimals: Math.min(4, Math.max(0, Number(e.target.value) || 0)),
+                      })
+                    }
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-500">
+                    Số chữ số sau dấu phẩy khi hiển thị giá trên web. VD: 0 → 1.000.000 đ · 2 →
+                    1.234,56 $
+                  </p>
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase text-zinc-400">
+                    Cách cập nhật tỷ giá
+                  </span>
+                  <select
+                    value={form.rateMode}
+                    onChange={(e) =>
+                      setForm({ ...form, rateMode: e.target.value as CurrencyRateMode })
+                    }
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  >
+                    <option value="manual">Tự cấu hình (Manual)</option>
+                    <option value="auto">Cập nhật qua API (Auto)</option>
+                  </select>
+                  <p className="mt-1 text-[10px] leading-relaxed text-zinc-500">
+                    Manual: bạn nhập tỷ giá quy đổi sang VND. Auto: hệ thống lấy tỷ giá tự động
+                    (demo).
+                  </p>
+                </label>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">

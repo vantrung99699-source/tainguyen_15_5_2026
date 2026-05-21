@@ -16,25 +16,19 @@ import {
 import { WALLET_TX_UPDATED } from '../services/walletTransactionService';
 import { CurrencyLanguageSwitcher } from './common/CurrencyLanguageSwitcher';
 import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
+import { NotificationBell } from './notifications/NotificationBell';
+import { dispatchLoginAlert } from '../services/notificationDispatcher';
 
 interface UserData {
   name: string;
   balance: number;
-  notifications: { id: number; text: string; time: string; unread: boolean }[];
 }
-
-const DEMO_NOTIFICATIONS: UserData['notifications'] = [
-    { id: 1, text: 'Đơn hàng #12345 đã được xử lý thành công', time: '5 phút trước', unread: true },
-    { id: 2, text: 'Tài khoản TikTok của bạn đã được kích hoạt', time: '1 giờ trước', unread: true },
-    { id: 3, text: 'Khuyến mãi 20% cho các tài khoản mới', time: '2 giờ trước', unread: false },
-];
 
 function sessionToUserData(): UserData {
   const session = loadCustomerSession();
   return {
     name: session.username,
     balance: session.balance,
-    notifications: DEMO_NOTIFICATIONS,
   };
 }
 
@@ -67,7 +61,6 @@ export default function Navbar({
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(() => sessionToUserData());
-  const [showNotifications, setShowNotifications] = useState(false);
   const headerConfig = useSiteHeaderConfig();
   const design = useSiteDesign();
   const { formatMoney, t } = useLocaleCurrency();
@@ -227,59 +220,10 @@ export default function Navbar({
             <div className="flex items-center gap-4 shrink-0">
               {isLoggedIn && userData ? (
                 <>
-                  {/* Notifications */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      className="relative p-2 rounded-xl hover:bg-slate-100 transition-colors"
-                    >
-                      <Bell className="w-5 h-5 text-slate-600" />
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                    </button>
-                    
-                    {/* Notifications Dropdown */}
-                    <AnimatePresence>
-                      {showNotifications && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                          className="absolute top-12 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[150]"
-                        >
-                          <div className="px-4 py-3 bg-emerald-50 border-b border-slate-100">
-                            <h3 className="font-black text-slate-800">Thông báo</h3>
-                          </div>
-                          <div className="max-h-80 overflow-y-auto">
-                            {userData.notifications.map((notif) => (
-                              <div
-                                key={notif.id}
-                                className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${
-                                  notif.unread ? 'bg-emerald-50/50' : ''
-                                }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  {notif.unread && <span className="w-2 h-2 bg-brand-primary rounded-full mt-1.5 shrink-0"></span>}
-                                  <div className="flex-1">
-                                    <p className="text-sm font-bold text-slate-700">{notif.text}</p>
-                                    <p className="text-xs text-slate-400 mt-1">{notif.time}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="px-4 py-3 border-t border-slate-100">
-                            <button className="w-full text-center text-sm font-bold text-brand-primary hover:underline">
-                              Xem tất cả thông báo
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                  <NotificationBell onViewAll={() => onNavigate?.('notifications')} />
 
                   {/* Balance */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
-                    <Coins className="w-4 h-4 text-emerald-600" />
+                  <div className="flex items-center px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
                     <span className="text-sm font-black text-emerald-700">
                       {formatMoney(userData.balance)}
                     </span>
@@ -313,9 +257,16 @@ export default function Navbar({
                             </p>
                           </div>
                           <div className="p-2">
-                            <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onNavigate?.('account');
+                                setShowUserMenu(false);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                            >
                               <User className="w-4 h-4" /> Tài khoản của tôi
-                            </a>
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -351,9 +302,16 @@ export default function Navbar({
                             >
                               <Shield className="w-4 h-4" /> Quản lý admin
                             </button>
-                            <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onNavigate?.('notifications');
+                                setShowUserMenu(false);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                            >
                               <Bell className="w-4 h-4" /> Thông báo
-                            </a>
+                            </button>
                           </div>
                           <div className="p-2 border-t border-slate-100">
                             <button
@@ -489,7 +447,17 @@ export default function Navbar({
                       </label>
                       <a href="#" className="font-bold text-brand-primary hover:underline">Quên mật khẩu?</a>
                     </div>
-                    <button type="submit" onClick={(e) => { e.preventDefault(); setIsLoggedIn(true); setUserData(sessionToUserData()); setShowAuthModal(false); }} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-black py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 cursor-pointer">
+                    <button
+                      type="submit"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsLoggedIn(true);
+                        setUserData(sessionToUserData());
+                        setShowAuthModal(false);
+                        dispatchLoginAlert(loadCustomerSession().userId);
+                      }}
+                      className="w-full cursor-pointer rounded-xl bg-brand-primary py-3 font-black text-white shadow-lg shadow-emerald-100 transition-colors hover:bg-brand-secondary"
+                    >
                       Đăng nhập
                     </button>
                   </form>

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import type { LucideIcon } from 'lucide-react';
-import { Ticket } from 'lucide-react';
 import { GlobalDepositPromotionSection } from './GlobalDepositPromotionSection';
+import { PromoCodesAdminSection } from './PromoCodesAdminSection';
 
 function SectionShell({
   title,
@@ -44,15 +44,7 @@ export function PromotionsSection() {
 }
 
 export function PromoCodesSection() {
-  return (
-    <SectionShell
-      title="Mã khuyến mãi"
-      subtitle="Coupon, voucher và mã giảm giá cho khách"
-      icon={Ticket}
-    >
-      <PlaceholderCard hint="Mã CODE, % giảm, số lần dùng, hạn sử dụng, áp dụng theo user..." />
-    </SectionShell>
-  );
+  return <PromoCodesAdminSection />;
 }
 
 export { CurrencyAdminSection as CurrencySection } from './CurrencyAdminSection';

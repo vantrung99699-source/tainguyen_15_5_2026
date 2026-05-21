@@ -71,15 +71,23 @@ export function LocaleCurrencyProvider({ children }: { children: ReactNode }) {
     };
   }, [sync]);
 
-  const currency = useMemo(
-    () => getCurrencyByCode(currencyCode) ?? getEnabledCurrencies()[0],
-    [currencyCode, currencies],
-  );
+  const currency = useMemo(() => {
+    return (
+      getCurrencyByCode(currencyCode) ??
+      getEnabledCurrencies()[0] ??
+      loadCurrencies().find((c) => c.isDefault) ??
+      loadCurrencies()[0]
+    );
+  }, [currencyCode, currencies]);
 
-  const language = useMemo(
-    () => languages.find((l) => l.code === localeCode) ?? getEnabledLanguages()[0],
-    [localeCode, languages],
-  );
+  const language = useMemo(() => {
+    return (
+      languages.find((l) => l.code === localeCode) ??
+      getEnabledLanguages()[0] ??
+      loadLanguages().find((l) => l.isDefault) ??
+      loadLanguages()[0]
+    );
+  }, [localeCode, languages]);
 
   const setCurrencyCode = useCallback((code: string) => {
     saveCustomerCurrencyCode(code);

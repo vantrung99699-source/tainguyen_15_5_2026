@@ -1,5 +1,7 @@
 import type { SaleMode, ServiceItem, ServiceShop } from '../types/serviceShop';
 import { loadCustomerSession } from './customerSession';
+import type { AppliedPromoResult } from '../types/promoCode';
+import { recordPromoUsage } from './promoCodeService';
 import { createInstantOrder } from './orderService';
 import {
   findShopItem,
@@ -38,6 +40,7 @@ export function createInstantPurchase(params: {
   shopId: number;
   itemId: number;
   quantity: number;
+  appliedPromo?: AppliedPromoResult | null;
 }):
   | { ok: true; deliveredContents: string[]; totalAmount: number; orderId: string }
   | { ok: false; error: string } {
@@ -58,7 +61,13 @@ export function createInstantPurchase(params: {
     return { ok: false, error: 'Kho không đủ số lượng.' };
   }
 
-  const totalAmount = item.price * params.quantity;
+  const subtotalAmount = item.price * params.quantity;
+  const promo = params.appliedPromo;
+  const discountAmount = promo?.discountAmount ?? 0;
+  const totalAmount = promo?.total ?? subtotalAmount;
+  if (promo && (promo.subtotal !== subtotalAmount || promo.total !== totalAmount)) {
+    return { ok: false, error: 'Mã khuyến mãi không còn khớp với đơn — áp dụng lại.' };
+  }
   if (session.balance < totalAmount) {
     return { ok: false, error: 'Số dư không đủ để mua.' };
   }
@@ -84,9 +93,22 @@ export function createInstantPurchase(params: {
     productName: item.name,
     quantity: params.quantity,
     unitPrice: item.price,
+    subtotalAmount,
+    discountAmount,
+    promoCode: promo?.code ?? null,
     totalAmount,
     deliveredContents: picked.map((r) => r.content),
   });
+
+  if (promo) {
+    recordPromoUsage({
+      promoId: promo.promoId,
+      code: promo.code,
+      userId: session.userId,
+      orderId: order.id,
+      discountAmount,
+    });
+  }
 
   return {
     ok: true,
