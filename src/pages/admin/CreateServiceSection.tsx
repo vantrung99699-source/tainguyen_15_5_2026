@@ -31,6 +31,8 @@ import {
   ShoppingBag,
   Archive,
   HelpCircle,
+  Plug,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as LucideIcons from 'lucide-react';
@@ -45,6 +47,16 @@ import type { Category } from '../../types';
 import ItemStockPage from './ItemStockPage';
 import type { StockResource } from './stockResource';
 import DetailDescriptionEditor from '../../components/admin/DetailDescriptionEditor';
+import { ItemApiLinkFields } from '../../components/admin/ItemApiLinkFields';
+import { ApiFieldLabelRow } from '../../components/admin/ApiFieldSyncToggle';
+import type { ApiProviderProduct } from '../../types/apiProvider';
+import type { ItemApiFieldSync, ItemApiPriceMarkup } from '../../types/itemApi';
+import { DEFAULT_ITEM_EXTERNAL_API } from '../../types/itemApi';
+import { loadApiProviders } from '../../services/apiProviderConfig';
+import {
+  mapProviderProductToItemFields,
+  normalizeItemExternalApi,
+} from '../../services/itemApiService';
 import ItemSalesStatsModal from '../../components/admin/ItemSalesStatsModal';
 import { PreorderAdminTab } from './PreorderAdminTab';
 import { loadServiceShops, saveServiceShops, syncItemStock } from '../../services/serviceShopConfig';
@@ -72,6 +84,8 @@ interface ServiceItem {
   resources: StockResource[];
   preorderEnabled: boolean;
   preorderMaxWaitDays: number;
+  stockSource: 'warehouse' | 'external_api';
+  externalApi: import('../../types/itemApi').ItemExternalApiConfig;
 }
 
 interface CreateItemInput {
@@ -87,6 +101,8 @@ interface CreateItemInput {
   visibility: ShopStatus;
   preorderEnabled: boolean;
   preorderMaxWaitDays: number;
+  stockSource: 'warehouse' | 'external_api';
+  externalApi: import('../../types/itemApi').ItemExternalApiConfig;
 }
 type IconSourceMode = 'preset' | 'upload';
 
@@ -805,6 +821,75 @@ function CreateItemModal({
   const [preorderMaxWaitDays, setPreorderMaxWaitDays] = useState(
     String(initialItem?.preorderMaxWaitDays ?? 3),
   );
+  const [formTab, setFormTab] = useState<'manual' | 'api'>(
+    initialItem?.stockSource === 'external_api' ? 'api' : 'manual',
+  );
+  const [externalApi, setExternalApi] = useState(() =>
+    normalizeItemExternalApi(initialItem?.externalApi ?? DEFAULT_ITEM_EXTERNAL_API),
+  );
+  const [apiDisplayStock, setApiDisplayStock] = useState(
+    initialItem?.stockSource === 'external_api'
+      ? initialItem?.stock ?? DEFAULT_ITEM_EXTERNAL_API.virtualStock
+      : DEFAULT_ITEM_EXTERNAL_API.virtualStock,
+  );
+  const [selectedApiProduct, setSelectedApiProduct] = useState<ApiProviderProduct | null>(null);
+
+  const isApiTab = formTab === 'api';
+  const fieldSync = externalApi.fieldSync;
+  const selectedApiProvider =
+    loadApiProviders().find((p) => p.id === externalApi.providerId) ?? null;
+
+  const patchFieldSync = (key: keyof ItemApiFieldSync, checked: boolean) => {
+    setExternalApi((v) =>
+      normalizeItemExternalApi({
+        ...v,
+        fieldSync: { ...v.fieldSync, [key]: checked },
+        enabled: true,
+      }),
+    );
+  };
+
+  const patchPriceMarkup = (partial: Partial<ItemApiPriceMarkup>) => {
+    setExternalApi((v) =>
+      normalizeItemExternalApi({
+        ...v,
+        priceMarkup: { ...v.priceMarkup, ...partial },
+        enabled: true,
+      }),
+    );
+  };
+
+  const syncedFieldClass = (synced: boolean) =>
+    synced ? `${inputClass} bg-sky-50/60 text-zinc-700` : inputClass;
+
+  const apiMappedFields =
+    selectedApiProduct && isApiTab
+      ? mapProviderProductToItemFields(
+          selectedApiProduct,
+          externalApi.priceMarkup,
+          selectedApiProvider ?? undefined,
+        )
+      : null;
+
+  useEffect(() => {
+    if (!isApiTab || !selectedApiProduct) return;
+    const mapped = mapProviderProductToItemFields(
+      selectedApiProduct,
+      externalApi.priceMarkup,
+      selectedApiProvider ?? undefined,
+    );
+    if (fieldSync.name) setName(mapped.name);
+    if (fieldSync.price) setPrice(String(mapped.price));
+    if (fieldSync.minPurchase) setMinPurchase(String(mapped.minPurchase));
+    if (fieldSync.maxPurchase) setMaxPurchase(String(mapped.maxPurchase));
+    if (fieldSync.sold) setSold(String(mapped.sold));
+    if (fieldSync.shortDescription) setShortDescription(mapped.shortDescription);
+    if (fieldSync.detailDescription) setDetailDescription(mapped.detailDescription);
+    setPreorderEnabled(mapped.preorderEnabled);
+    setPreorderMaxWaitDays(String(mapped.preorderMaxWaitDays));
+    setSaleMode(mapped.saleMode);
+    setApiDisplayStock(mapped.stock);
+  }, [isApiTab, selectedApiProduct, fieldSync, externalApi.priceMarkup, selectedApiProvider]);
 
   const slugInvalid = slug.length > 0 && !isValidSlug(slug);
 
@@ -820,7 +905,7 @@ function CreateItemModal({
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
-        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-6 py-4">
@@ -850,6 +935,15 @@ function CreateItemModal({
             const finalSlug = isEdit
               ? trimmedSlug || initialItem!.slug
               : resolveItemSlug(slug);
+            const useApi = formTab === 'api';
+            const apiCfg = normalizeItemExternalApi({
+              ...externalApi,
+              enabled: useApi,
+              virtualStock: useApi ? apiDisplayStock : externalApi.virtualStock,
+            });
+            if (useApi && (!apiCfg.providerId.trim() || !apiCfg.externalProductId.trim())) {
+              return;
+            }
             onSave({
               name: name.trim(),
               slug: finalSlug,
@@ -863,31 +957,133 @@ function CreateItemModal({
               visibility,
               preorderEnabled,
               preorderMaxWaitDays: Math.max(1, Number(preorderMaxWaitDays) || 3),
+              stockSource: useApi ? 'external_api' : 'warehouse',
+              externalApi: useApi ? apiCfg : { ...apiCfg, enabled: false },
             });
           }}
         >
+          <div className="flex gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-1">
+            <button
+              type="button"
+              onClick={() => setFormTab('manual')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
+                formTab === 'manual'
+                  ? 'bg-white text-brand-primary shadow-sm ring-1 ring-emerald-100'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Thông tin & kho nội bộ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFormTab('api');
+                setExternalApi((v) => normalizeItemExternalApi({ ...v, enabled: true }));
+              }}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
+                formTab === 'api'
+                  ? 'bg-white text-sky-700 shadow-sm ring-1 ring-sky-100'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <Plug className="h-4 w-4" />
+              Tạo qua API ngoài
+            </button>
+          </div>
+
+          {formTab === 'api' ? (
+            <ItemApiLinkFields
+              value={externalApi}
+              onChange={setExternalApi}
+              onProductSelected={setSelectedApiProduct}
+            />
+          ) : null}
+
           <div>
-            <FormFieldLabel required>Tên mặt hàng</FormFieldLabel>
+            <ApiFieldLabelRow
+              label="Tên mặt hàng"
+              required
+              showSync={isApiTab}
+              syncChecked={fieldSync.name}
+              onSyncChange={(checked) => patchFieldSync('name', checked)}
+            />
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="VD: TIKTOK >1K FL - SHOP..."
-              className={inputClass}
+              className={syncedFieldClass(isApiTab && fieldSync.name)}
+              readOnly={isApiTab && fieldSync.name}
               required
             />
           </div>
 
-          <div className="max-w-xs">
-            <FormFieldLabel required>Giá (đ)</FormFieldLabel>
+          <div className={isApiTab && fieldSync.price ? 'max-w-md' : 'max-w-xs'}>
+            <ApiFieldLabelRow
+              label="Giá (đ)"
+              required
+              showSync={isApiTab}
+              syncChecked={fieldSync.price}
+              onSyncChange={(checked) => patchFieldSync('price', checked)}
+            />
             <input
               type="number"
               min={0}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="15000"
-              className={inputClass}
+              className={syncedFieldClass(isApiTab && fieldSync.price)}
+              readOnly={isApiTab && fieldSync.price}
               required
             />
+            {isApiTab && fieldSync.price ? (
+              <div className="mt-2 space-y-2 rounded-lg border border-sky-100 bg-sky-50/50 p-2.5">
+                <p className="text-[10px] font-bold uppercase text-sky-800">Chênh giá so với NCC</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={externalApi.priceMarkup.type}
+                    onChange={(e) =>
+                      patchPriceMarkup({
+                        type: e.target.value as 'percent' | 'fixed',
+                      })
+                    }
+                    className={`${inputClass} py-2 text-[13px]`}
+                  >
+                    <option value="percent">Theo % (+)</option>
+                    <option value="fixed">Cố định (+đ)</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    value={externalApi.priceMarkup.value}
+                    onChange={(e) =>
+                      patchPriceMarkup({ value: Math.max(0, Number(e.target.value) || 0) })
+                    }
+                    placeholder={externalApi.priceMarkup.type === 'percent' ? '35' : '5000'}
+                    className={`${inputClass} py-2 text-[13px]`}
+                  />
+                </div>
+                {apiMappedFields ? (
+                  <p className="text-[11px] text-zinc-600">
+                    Giá NCC:{' '}
+                    {apiMappedFields.providerPriceCurrency === 'USD' ? (
+                      <>
+                        ${apiMappedFields.providerRawPrice} ×{' '}
+                        {apiMappedFields.exchangeRateToVnd.toLocaleString('vi-VN')} ={' '}
+                        <strong>{apiMappedFields.providerBasePrice.toLocaleString('vi-VN')}đ</strong>
+                      </>
+                    ) : (
+                      <strong>{apiMappedFields.providerBasePrice.toLocaleString('vi-VN')}đ</strong>
+                    )}
+                    {' → '}
+                    Giá bán: <strong>{apiMappedFields.price.toLocaleString('vi-VN')}đ</strong>
+                    {externalApi.priceMarkup.type === 'percent'
+                      ? ` (+${externalApi.priceMarkup.value}%)`
+                      : ` (+${externalApi.priceMarkup.value.toLocaleString('vi-VN')}đ)`}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -918,61 +1114,95 @@ function CreateItemModal({
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <FormFieldLabel required>Mua tối thiểu</FormFieldLabel>
+          <div className="grid gap-3 sm:grid-cols-3 sm:items-start">
+            <div className="flex flex-col">
+              <ApiFieldLabelRow
+                label="Mua tối thiểu"
+                required
+                showSync={isApiTab}
+                syncChecked={fieldSync.minPurchase}
+                onSyncChange={(checked) => patchFieldSync('minPurchase', checked)}
+              />
               <input
                 type="number"
                 min={1}
                 value={minPurchase}
                 onChange={(e) => setMinPurchase(e.target.value)}
                 placeholder={String(DEFAULT_ITEM_MIN_PURCHASE)}
-                className={inputClass}
+                className={syncedFieldClass(isApiTab && fieldSync.minPurchase)}
+                readOnly={isApiTab && fieldSync.minPurchase}
                 required
               />
             </div>
-            <div>
-              <FormFieldLabel>Tối đa</FormFieldLabel>
+            <div className="flex flex-col">
+              <ApiFieldLabelRow
+                label="Tối đa"
+                showSync={isApiTab}
+                syncChecked={fieldSync.maxPurchase}
+                onSyncChange={(checked) => patchFieldSync('maxPurchase', checked)}
+              />
               <input
                 type="number"
                 min={1}
                 value={maxPurchase}
                 onChange={(e) => setMaxPurchase(e.target.value)}
                 placeholder={String(DEFAULT_ITEM_MAX_PURCHASE)}
-                className={inputClass}
+                className={syncedFieldClass(isApiTab && fieldSync.maxPurchase)}
+                readOnly={isApiTab && fieldSync.maxPurchase}
               />
             </div>
-            <div>
-              <FormFieldLabelHoverHint hint="Chỉ nhập khi mặt hàng đã có lịch sử bán (chuyển shop, nhập tay số cũ). Để trống hoặc 0 nếu mặt hàng mới — hệ thống sẽ đếm từ đơn bán thực tế.">
-                Số lượng đã bán
-              </FormFieldLabelHoverHint>
+            <div className="flex flex-col">
+              <ApiFieldLabelRow
+                label="Số lượng đã bán"
+                showSync={isApiTab}
+                syncChecked={fieldSync.sold}
+                onSyncChange={(checked) => patchFieldSync('sold', checked)}
+              />
               <input
                 type="number"
                 min={0}
                 value={sold}
                 onChange={(e) => setSold(e.target.value)}
                 placeholder="0"
-                className={inputClass}
+                className={syncedFieldClass(isApiTab && fieldSync.sold)}
+                readOnly={isApiTab && fieldSync.sold}
               />
             </div>
           </div>
+          {!isApiTab || !fieldSync.sold ? (
+            <p className="-mt-2 text-[10px] text-zinc-500">
+              Số lượng đã bán: chỉ nhập khi mặt hàng đã có lịch sử bán; mặt hàng mới để 0.
+            </p>
+          ) : null}
 
           <div>
-            <FormFieldLabel>Mô tả ngắn</FormFieldLabel>
+            <ApiFieldLabelRow
+              label="Mô tả ngắn"
+              showSync={isApiTab}
+              syncChecked={fieldSync.shortDescription}
+              onSyncChange={(checked) => patchFieldSync('shortDescription', checked)}
+            />
             <textarea
               value={shortDescription}
               onChange={(e) => setShortDescription(e.target.value)}
               placeholder="Hiển thị trên danh sách sản phẩm"
               rows={2}
-              className={`${inputClass} resize-y`}
+              className={`${syncedFieldClass(isApiTab && fieldSync.shortDescription)} resize-y`}
+              readOnly={isApiTab && fieldSync.shortDescription}
             />
           </div>
 
           <div>
-            <FormFieldLabel>Mô tả chi tiết</FormFieldLabel>
+            <ApiFieldLabelRow
+              label="Mô tả chi tiết"
+              showSync={isApiTab}
+              syncChecked={fieldSync.detailDescription}
+              onSyncChange={(checked) => patchFieldSync('detailDescription', checked)}
+            />
             <DetailDescriptionEditor
               value={detailDescription}
               onChange={setDetailDescription}
+              readOnly={isApiTab && fieldSync.detailDescription}
               placeholder="Nội dung mô tả đầy đủ trên trang mặt hàng"
               aiContext={{
                 name,
@@ -983,21 +1213,41 @@ function CreateItemModal({
           </div>
 
 
-          <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={preorderEnabled}
-                onChange={(e) => setPreorderEnabled(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-violet-300 text-brand-primary"
-              />
-              <span>
-                <span className="text-sm font-bold text-violet-900">Cho phép đặt trước</span>
-                <span className="mt-0.5 block text-[12px] text-violet-700/80">
-                  Trang khách luôn hiện Mua ngay và Đặt trước; nếu còn kho, ấn Đặt trước sẽ nhắc dùng Mua ngay
+          <div
+            className={`rounded-xl border p-4 space-y-3 ${
+              isApiTab ? 'border-sky-100 bg-sky-50/40' : 'border-violet-100 bg-violet-50/40'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <label
+                className={`flex flex-1 items-start gap-3 ${isApiTab ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={preorderEnabled}
+                  onChange={(e) => {
+                    if (!isApiTab) setPreorderEnabled(e.target.checked);
+                  }}
+                  disabled={isApiTab}
+                  className="mt-1 h-4 w-4 rounded border-violet-300 text-brand-primary disabled:opacity-70"
+                />
+                <span>
+                  <span className={`text-sm font-bold ${isApiTab ? 'text-sky-900' : 'text-violet-900'}`}>
+                    Cho phép đặt trước
+                  </span>
+                  <span
+                    className={`mt-0.5 block text-[12px] ${isApiTab ? 'text-sky-700/80' : 'text-violet-700/80'}`}
+                  >
+                    Trang khách luôn hiện Mua ngay và Đặt trước; nếu còn kho, ấn Đặt trước sẽ nhắc dùng Mua ngay
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+              {isApiTab ? (
+                <span className="shrink-0 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide text-sky-700 sm:text-[10px]">
+                  Đồng bộ NCC
+                </span>
+              ) : null}
+            </div>
             {preorderEnabled ? (
               <div>
                 <FormFieldLabel>Số ngày chờ tối đa khách được chọn</FormFieldLabel>
@@ -1006,8 +1256,11 @@ function CreateItemModal({
                   min={1}
                   max={30}
                   value={preorderMaxWaitDays}
-                  onChange={(e) => setPreorderMaxWaitDays(e.target.value)}
-                  className={inputClass}
+                  onChange={(e) => {
+                    if (!isApiTab) setPreorderMaxWaitDays(e.target.value);
+                  }}
+                  readOnly={isApiTab}
+                  className={syncedFieldClass(isApiTab)}
                 />
                 <p className="mt-1 text-[11px] text-violet-700/70">
                   Khách chọn 1–{preorderMaxWaitDays || 3} ngày; quá hạn chưa xác nhận → tự hoàn tiền
@@ -1016,13 +1269,21 @@ function CreateItemModal({
             ) : null}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
             <div>
-              <FormFieldLabel required>Kiểu bán</FormFieldLabel>
+              <ApiFieldLabelRow
+                label="Kiểu bán"
+                required
+                showSync={isApiTab}
+                syncLocked={isApiTab}
+              />
               <select
                 value={saleMode}
-                onChange={(e) => setSaleMode(e.target.value as SaleMode)}
-                className={`${inputClass} cursor-pointer`}
+                onChange={(e) => {
+                  if (!isApiTab) setSaleMode(e.target.value as SaleMode);
+                }}
+                disabled={isApiTab}
+                className={`${syncedFieldClass(isApiTab)} ${isApiTab ? '' : 'cursor-pointer'}`}
               >
                 {SALE_MODE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -1032,7 +1293,7 @@ function CreateItemModal({
               </select>
             </div>
             <div>
-              <FormFieldLabel required>Chế độ hiển thị</FormFieldLabel>
+              <ApiFieldLabelRow label="Chế độ hiển thị" required />
               <select
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value as ShopStatus)}
@@ -1045,9 +1306,16 @@ function CreateItemModal({
           </div>
 
           <p className="text-[12px] text-zinc-500">
-            {isEdit
-              ? 'Tồn kho quản lý trong mục Kho — không đổi khi sửa form này.'
-              : 'Tồn kho lấy từ số tài nguyên trong Kho sau khi tạo mặt hàng.'}
+            {formTab === 'api' ? (
+              <>
+                Kho hiển thị ban đầu: <strong>{apiDisplayStock}</strong> — cập nhật khi có đơn API hoặc
+                đồng bộ sau (từ NCC).
+              </>
+            ) : isEdit ? (
+              'Tồn kho quản lý trong mục Kho — không đổi khi sửa form này.'
+            ) : (
+              'Tồn kho lấy từ số tài nguyên trong Kho sau khi tạo mặt hàng.'
+            )}
           </p>
 
           <motion.div className="flex gap-2 border-t border-zinc-100 pt-2">
@@ -1060,7 +1328,12 @@ function CreateItemModal({
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || slugInvalid}
+              disabled={
+                !name.trim() ||
+                slugInvalid ||
+                (formTab === 'api' &&
+                  (!externalApi.providerId.trim() || !externalApi.externalProductId.trim()))
+              }
               className="flex-[2] rounded-xl bg-brand-primary py-2.5 text-sm font-black text-white shadow-md shadow-emerald-200/50 transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isEdit ? 'Lưu thay đổi' : 'Tạo mặt hàng'}
@@ -1162,7 +1435,7 @@ function ServiceShopBlock({
   };
 
   const addItem = (data: CreateItemInput) => {
-    const newItem: ServiceItem = syncStock({
+    let newItem: ServiceItem = syncStock({
       id: Date.now(),
       name: data.name,
       slug: data.slug,
@@ -1185,8 +1458,13 @@ function ServiceShopBlock({
       enabled: data.visibility === 'visible',
       preorderEnabled: data.preorderEnabled,
       preorderMaxWaitDays: data.preorderMaxWaitDays,
+      stockSource: data.stockSource,
+      externalApi: data.externalApi,
       resources: [],
     });
+    if (data.stockSource === 'external_api') {
+      newItem = { ...newItem, stock: data.externalApi.virtualStock };
+    }
     onUpdateShop({ ...shop, items: [...shop.items, newItem] });
     closeItemModal();
   };
@@ -1196,22 +1474,30 @@ function ServiceShopBlock({
       ...shop,
       items: shop.items.map((i) =>
         i.id === itemId
-          ? syncStock({
-              ...i,
-              name: data.name,
-              slug: data.slug,
-              price: data.price,
-              minPurchase: data.minPurchase,
-              maxPurchase: data.maxPurchase,
-              sold: data.sold,
-              shortDescription: data.shortDescription,
-              detailDescription: data.detailDescription,
-              saleMode: data.saleMode,
-              visibility: data.visibility,
-              enabled: data.visibility === 'visible',
-              preorderEnabled: data.preorderEnabled,
-              preorderMaxWaitDays: data.preorderMaxWaitDays,
-            })
+          ? (() => {
+              let next = syncStock({
+                ...i,
+                name: data.name,
+                slug: data.slug,
+                price: data.price,
+                minPurchase: data.minPurchase,
+                maxPurchase: data.maxPurchase,
+                sold: data.sold,
+                shortDescription: data.shortDescription,
+                detailDescription: data.detailDescription,
+                saleMode: data.saleMode,
+                visibility: data.visibility,
+                enabled: data.visibility === 'visible',
+                preorderEnabled: data.preorderEnabled,
+                preorderMaxWaitDays: data.preorderMaxWaitDays,
+                stockSource: data.stockSource,
+                externalApi: data.externalApi,
+              });
+              if (data.stockSource === 'external_api') {
+                next = { ...next, stock: data.externalApi.virtualStock };
+              }
+              return next;
+            })()
           : i
       ),
     });
@@ -1493,6 +1779,11 @@ function ServiceShopBlock({
                                   className="text-[13px] font-bold text-brand-primary"
                                 />
                               </div>
+                              {item.stockSource === 'external_api' && item.externalApi?.enabled ? (
+                                <span className="inline-block shrink-0 rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                                  API
+                                </span>
+                              ) : null}
                               {item.visibility === 'hidden' && (
                                 <span className="inline-block shrink-0 rounded bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
                                   Ẩn

@@ -2,7 +2,8 @@ export type TelegramAdminEvent =
   | 'newOrder'
   | 'withdrawalRequest'
   | 'depositSuccess'
-  | 'lowStock';
+  | 'lowStock'
+  | 'lowProviderBalance';
 
 export type TelegramApiServer = 'official' | 'tnd-proxy' | 'custom';
 
@@ -160,4 +161,5 @@ export const TELEGRAM_EVENT_LABELS: Record<TelegramAdminEvent, string> = {
   withdrawalRequest: 'Yêu cầu rút tiền affiliate',
   depositSuccess: 'Nạp tiền thành công',
   lowStock: 'Kho sắp hết',
+  lowProviderBalance: 'Số dư NCC thấp',
 };

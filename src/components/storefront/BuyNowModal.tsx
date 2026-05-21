@@ -29,6 +29,7 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
   const [quantity, setQuantity] = useState(min);
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromoResult | null>(null);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const sync = () => setBalance(loadCustomerSession().balance);
@@ -57,18 +58,21 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
 
   const total = appliedPromo?.total ?? subtotal;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product.shopId || !product.itemId) {
       setError('Sản phẩm demo — chưa liên kết kho admin.');
       return;
     }
-    const result = createInstantPurchase({
+    setSubmitting(true);
+    setError('');
+    const result = await createInstantPurchase({
       shopId: product.shopId,
       itemId: product.itemId,
       quantity,
       appliedPromo,
     });
+    setSubmitting(false);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -161,9 +165,10 @@ export function BuyNowModal({ product, onClose, onSuccess }: BuyNowModalProps) {
           <div className="shrink-0 border-t border-zinc-100 px-5 py-4">
             <button
               type="submit"
-              className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-sm font-black text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+              disabled={submitting}
+              className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-sm font-black text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700 disabled:cursor-wait disabled:opacity-70"
             >
-              Xác nhận mua ngay
+              {submitting ? 'Đang gọi API & xử lý…' : 'Xác nhận mua ngay'}
             </button>
           </div>
         </form>

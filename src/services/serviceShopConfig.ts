@@ -1,5 +1,6 @@
 import type { ServiceItem, ServiceShop } from '../types/serviceShop';
 import type { StockResource } from '../pages/admin/stockResource';
+import { normalizeItemExternalApi } from './itemApiService';
 
 export const SERVICE_SHOPS_UPDATED = 'taphoammo-service-shops-updated';
 const STORAGE_KEY = 'taphoammo_service_shops';
@@ -28,8 +29,22 @@ function normalizeItem(raw: Partial<ServiceItem>, index: number): ServiceItem {
     resources,
     preorderEnabled: Boolean(raw.preorderEnabled),
     preorderMaxWaitDays: Math.max(1, Number(raw.preorderMaxWaitDays ?? 3)),
+    externalApi: normalizeItemExternalApi(
+      raw.externalApi as Partial<ServiceItem['externalApi']> | undefined,
+    ),
+    stockSource:
+      raw.stockSource === 'external_api' || (raw.externalApi as { enabled?: boolean })?.enabled
+        ? 'external_api'
+        : 'warehouse',
   };
-  return syncItemStock(item);
+  const synced = syncItemStock(item);
+  if (synced.stockSource === 'external_api' && synced.externalApi.enabled) {
+    return {
+      ...synced,
+      stock: Math.max(synced.stock, synced.externalApi.virtualStock),
+    };
+  }
+  return synced;
 }
 
 function normalizeShop(raw: Partial<ServiceShop>, index: number): ServiceShop {

@@ -24,6 +24,7 @@ interface DetailDescriptionEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   aiContext: ProductDescriptionContext;
+  readOnly?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -64,6 +65,7 @@ export default function DetailDescriptionEditor({
   onChange,
   placeholder = 'Nội dung mô tả đầy đủ trên trang mặt hàng',
   aiContext,
+  readOnly = false,
 }: DetailDescriptionEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -172,7 +174,12 @@ export default function DetailDescriptionEditor({
   const isEmpty = !value || value === '<br>' || value.replace(/<[^>]*>/g, '').trim() === '';
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white ring-1 ring-zinc-100/80 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/10">
+    <div
+      className={`rounded-lg border border-zinc-200 bg-white ring-1 ring-zinc-100/80 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/10 ${
+        readOnly ? 'bg-sky-50/40' : ''
+      }`}
+    >
+      {!readOnly ? (
       <div className="flex flex-wrap items-center gap-0.5 rounded-t-lg border-b border-zinc-100 bg-zinc-50/80 px-2 py-1.5">
         <ToolbarButton label="In đậm" onClick={() => exec('bold')}>
           <Bold className="h-4 w-4" />
@@ -226,21 +233,23 @@ export default function DetailDescriptionEditor({
           {aiLoading ? 'Đang viết…' : 'AI viết mô tả'}
         </button>
       </div>
+      ) : null}
 
-      <div className="relative min-h-[220px] max-h-[min(560px,55vh)] resize-y overflow-y-auto overflow-x-hidden border-b border-zinc-100 bg-zinc-50/30">
+      <div className={`relative min-h-[220px] max-h-[min(560px,55vh)] resize-y overflow-y-auto overflow-x-hidden border-b border-zinc-100 ${readOnly ? 'bg-sky-50/30' : 'bg-zinc-50/30'}`}>
         {isEmpty && (
           <p className="pointer-events-none absolute left-3 top-2.5 z-[1] text-sm text-zinc-400">{placeholder}</p>
         )}
         <div
           ref={editorRef}
-          contentEditable
+          contentEditable={!readOnly}
           suppressContentEditableWarning
           role="textbox"
           aria-multiline
-          className={editorContentClass}
-          onInput={emitChange}
-          onBlur={emitChange}
-          onPaste={(e) => {
+          aria-readonly={readOnly}
+          className={`${editorContentClass}${readOnly ? ' cursor-default' : ''}`}
+          onInput={readOnly ? undefined : emitChange}
+          onBlur={readOnly ? undefined : emitChange}
+          onPaste={readOnly ? (e) => e.preventDefault() : (e) => {
             const items = e.clipboardData?.items;
             if (!items) return;
             for (const item of items) {
@@ -262,11 +271,13 @@ export default function DetailDescriptionEditor({
         />
       </div>
 
+      {!readOnly ? (
       <p className="px-2.5 py-1.5 text-[10px] font-medium text-zinc-400">
         Kéo mép dưới ô soạn thảo để chỉnh chiều cao · Dùng biểu tượng &lt;/&gt; hoặc nút HTML để chèn/chỉnh mã HTML
       </p>
+      ) : null}
 
-      {aiError && (
+      {!readOnly && aiError && (
         <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-600">{aiError}</p>
       )}
       {htmlModalOpen &&

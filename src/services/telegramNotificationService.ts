@@ -23,6 +23,7 @@ const DEFAULT_CONFIG: TelegramAdminConfig = {
     withdrawalRequest: true,
     depositSuccess: true,
     lowStock: true,
+    lowProviderBalance: true,
   },
 };
 
@@ -34,7 +35,12 @@ export function loadTelegramConfig(): TelegramAdminConfig {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as TelegramAdminConfig) };
+    const parsed = JSON.parse(raw) as TelegramAdminConfig;
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed,
+      events: { ...DEFAULT_CONFIG.events, ...parsed.events },
+    };
   } catch {
     return { ...DEFAULT_CONFIG };
   }

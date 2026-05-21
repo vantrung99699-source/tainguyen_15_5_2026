@@ -28,6 +28,7 @@ import {
   Mail,
   Bell,
   PanelTop,
+  Plug,
   History,
   ShoppingBag,
   Share2,
@@ -38,6 +39,7 @@ import PaymentsSection from './PaymentsSection';
 import UsersSection from './UsersSection';
 import { HeaderSettingsSection } from './GeneralSettingsSection';
 import { HomeAnnouncementsSection } from './HomeAnnouncementsSection';
+import { ApiProvidersSection } from './ApiProvidersSection';
 import { DesignSection } from './DesignSection';
 import {
   PromotionsSection,
@@ -70,6 +72,7 @@ export type AdminSection =
   | 'orders'
   | 'settings-header'
   | 'settings-home-announcements'
+  | 'settings-api-providers'
   | 'design'
   | 'promotions'
   | 'promo-codes'
@@ -141,6 +144,7 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
         children: [
           { id: 'settings-header', label: 'Cài header', icon: PanelTop },
           { id: 'settings-home-announcements', label: 'Thông báo trang chủ', icon: Home },
+          { id: 'settings-api-providers', label: 'Nhà cung cấp API', icon: Plug },
         ],
       },
       { id: 'design', label: 'Thiết kế', icon: Palette },
@@ -197,7 +201,11 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const ActiveIcon = nav?.leaf.icon;
 
   useEffect(() => {
-    if (activeSection === 'settings-header' || activeSection === 'settings-home-announcements') {
+    if (
+      activeSection === 'settings-header' ||
+      activeSection === 'settings-home-announcements' ||
+      activeSection === 'settings-api-providers'
+    ) {
       setExpandedGroups((prev) => new Set(prev).add(GENERAL_SETTINGS_GROUP_ID));
     }
   }, [activeSection]);
@@ -517,6 +525,7 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
                   {activeSection === 'affiliate' && <AffiliateSection />}
                   {activeSection === 'settings-header' && <HeaderSettingsSection />}
                   {activeSection === 'settings-home-announcements' && <HomeAnnouncementsSection />}
+                  {activeSection === 'settings-api-providers' && <ApiProvidersSection />}
                   {activeSection === 'design' && <DesignSection />}
                   {activeSection === 'promotions' && <PromotionsSection />}
                   {activeSection === 'promo-codes' && <PromoCodesSection />}

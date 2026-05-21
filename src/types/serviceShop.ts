@@ -1,4 +1,5 @@
 import type { StockResource } from '../pages/admin/stockResource';
+import type { ItemExternalApiConfig, ItemStockSource } from './itemApi';
 
 export type ShopStatus = 'visible' | 'hidden';
 export type SaleMode = 'fifo' | 'oldest' | 'newest' | 'random';
@@ -23,6 +24,9 @@ export interface ServiceItem {
   preorderEnabled: boolean;
   /** Số ngày chờ tối đa khách được chọn */
   preorderMaxWaitDays: number;
+  /** warehouse = kho tài nguyên nội bộ; external_api = giao hàng qua API web khác */
+  stockSource: ItemStockSource;
+  externalApi: ItemExternalApiConfig;
 }
 
 export interface ServiceShop {
@@ -52,4 +56,6 @@ export interface CreateItemInput {
   visibility: ShopStatus;
   preorderEnabled: boolean;
   preorderMaxWaitDays: number;
+  stockSource: ItemStockSource;
+  externalApi: ItemExternalApiConfig;
 }

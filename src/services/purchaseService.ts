@@ -9,6 +9,7 @@ import {
   saveServiceShops,
   syncItemStock,
 } from './serviceShopConfig';
+import { fulfillOrderViaExternalApi } from './itemApiService';
 
 function sortResources(resources: ServiceItem['resources'], mode: SaleMode) {
   const list = [...resources];
@@ -36,14 +37,15 @@ function pickResources(item: ServiceItem, quantity: number) {
   return { picked, remaining };
 }
 
-export function createInstantPurchase(params: {
+export async function createInstantPurchase(params: {
   shopId: number;
   itemId: number;
   quantity: number;
   appliedPromo?: AppliedPromoResult | null;
-}):
+}): Promise<
   | { ok: true; deliveredContents: string[]; totalAmount: number; orderId: string }
-  | { ok: false; error: string } {
+  | { ok: false; error: string }
+> {
   const session = loadCustomerSession();
   const shops = loadServiceShops();
   const { shop, item } = findShopItem(shops, params.shopId, params.itemId);
@@ -72,12 +74,31 @@ export function createInstantPurchase(params: {
     return { ok: false, error: 'Số dư không đủ để mua.' };
   }
 
-  const { picked, remaining } = pickResources(item, params.quantity);
-  const updatedItem = syncItemStock({
-    ...item,
-    resources: remaining,
-    sold: item.sold + params.quantity,
-  });
+  let deliveredContents: string[] = [];
+  let updatedItem: ServiceItem;
+
+  if (item.stockSource === 'external_api' && item.externalApi.enabled) {
+    const apiResult = await fulfillOrderViaExternalApi(item.externalApi, params.quantity);
+    if (!apiResult.ok) {
+      return { ok: false, error: apiResult.error };
+    }
+    deliveredContents = apiResult.contents;
+    const nextStock = Math.max(0, item.stock - params.quantity);
+    updatedItem = {
+      ...item,
+      stock: nextStock,
+      externalApi: { ...item.externalApi, virtualStock: nextStock },
+      sold: item.sold + params.quantity,
+    };
+  } else {
+    const { picked, remaining } = pickResources(item, params.quantity);
+    deliveredContents = picked.map((r) => r.content);
+    updatedItem = syncItemStock({
+      ...item,
+      resources: remaining,
+      sold: item.sold + params.quantity,
+    });
+  }
 
   const nextShops = shops.map((s) =>
     s.id !== shop!.id
@@ -97,7 +118,7 @@ export function createInstantPurchase(params: {
     discountAmount,
     promoCode: promo?.code ?? null,
     totalAmount,
-    deliveredContents: picked.map((r) => r.content),
+    deliveredContents,
   });
 
   if (promo) {
@@ -112,7 +133,7 @@ export function createInstantPurchase(params: {
 
   return {
     ok: true,
-    deliveredContents: picked.map((r) => r.content),
+    deliveredContents,
     totalAmount,
     orderId: order.id,
   };
