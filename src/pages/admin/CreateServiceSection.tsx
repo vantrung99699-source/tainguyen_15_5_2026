@@ -51,7 +51,7 @@ import { ItemApiLinkFields } from '../../components/admin/ItemApiLinkFields';
 import { ApiFieldLabelRow } from '../../components/admin/ApiFieldSyncToggle';
 import type { ApiProviderProduct } from '../../types/apiProvider';
 import type { ItemApiFieldSync, ItemApiPriceMarkup } from '../../types/itemApi';
-import { DEFAULT_ITEM_EXTERNAL_API } from '../../types/itemApi';
+import { DEFAULT_ITEM_API_FIELD_SYNC, DEFAULT_ITEM_EXTERNAL_API } from '../../types/itemApi';
 import { loadApiProviders } from '../../services/apiProviderConfig';
 import {
   mapProviderProductToItemFields,
@@ -979,7 +979,13 @@ function CreateItemModal({
               type="button"
               onClick={() => {
                 setFormTab('api');
-                setExternalApi((v) => normalizeItemExternalApi({ ...v, enabled: true }));
+                setExternalApi((v) =>
+                  normalizeItemExternalApi({
+                    ...v,
+                    enabled: true,
+                    fieldSync: isEdit ? v.fieldSync : { ...DEFAULT_ITEM_API_FIELD_SYNC },
+                  }),
+                );
               }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
                 formTab === 'api'

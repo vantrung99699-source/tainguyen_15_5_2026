@@ -16,11 +16,11 @@ export interface ItemApiFieldSync {
 export const DEFAULT_ITEM_API_FIELD_SYNC: ItemApiFieldSync = {
   name: true,
   price: true,
-  minPurchase: false,
-  maxPurchase: false,
-  sold: false,
-  shortDescription: false,
-  detailDescription: false,
+  minPurchase: true,
+  maxPurchase: true,
+  sold: true,
+  shortDescription: true,
+  detailDescription: true,
 };
 
 export type ItemApiPriceMarkupType = 'percent' | 'fixed';

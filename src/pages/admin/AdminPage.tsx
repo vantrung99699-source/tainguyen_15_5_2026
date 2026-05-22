@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -100,6 +100,7 @@ interface AdminPageProps {
 }
 
 const GENERAL_SETTINGS_GROUP_ID = 'general-settings';
+const NOTIFICATION_GROUP_ID = 'notifications';
 
 interface AdminMenuLeaf {
   id: AdminSection;
@@ -143,7 +144,6 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
         icon: Settings,
         children: [
           { id: 'settings-header', label: 'Cài header', icon: PanelTop },
-          { id: 'settings-home-announcements', label: 'Thông báo trang chủ', icon: Home },
           { id: 'settings-api-providers', label: 'Nhà cung cấp API', icon: Plug },
         ],
       },
@@ -158,9 +158,17 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
   {
     title: 'Thông báo',
     items: [
-      { id: 'notify-telegram', label: 'Thông báo Telegram', icon: Send },
-      { id: 'notify-email', label: 'Thông báo Email', icon: Mail },
-      { id: 'notify-user', label: 'Thông báo người dùng', icon: Bell },
+      {
+        groupId: NOTIFICATION_GROUP_ID,
+        label: 'Thông báo',
+        icon: Bell,
+        children: [
+          { id: 'settings-home-announcements', label: 'Thông báo trang chủ', icon: Home },
+          { id: 'notify-user', label: 'Thông báo người dùng', icon: Bell },
+          { id: 'notify-telegram', label: 'Thông báo Telegram', icon: Send },
+          { id: 'notify-email', label: 'Thông báo Email', icon: Mail },
+        ],
+      },
     ],
   },
 ];
@@ -186,9 +194,7 @@ function resolveNav(section: AdminSection) {
 export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>('statistics');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set([GENERAL_SETTINGS_GROUP_ID]),
-  );
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const [unreadPreorderCount, setUnreadPreorderCount] = useState(() =>
     getUnreadPendingPreorderCount(),
   );
@@ -201,12 +207,16 @@ export default function AdminPage({ onNavigateHome }: AdminPageProps) {
   const ActiveIcon = nav?.leaf.icon;
 
   useEffect(() => {
-    if (
-      activeSection === 'settings-header' ||
-      activeSection === 'settings-home-announcements' ||
-      activeSection === 'settings-api-providers'
-    ) {
+    if (activeSection === 'settings-header' || activeSection === 'settings-api-providers') {
       setExpandedGroups((prev) => new Set(prev).add(GENERAL_SETTINGS_GROUP_ID));
+    }
+    if (
+      activeSection === 'settings-home-announcements' ||
+      activeSection === 'notify-telegram' ||
+      activeSection === 'notify-email' ||
+      activeSection === 'notify-user'
+    ) {
+      setExpandedGroups((prev) => new Set(prev).add(NOTIFICATION_GROUP_ID));
     }
   }, [activeSection]);
 
@@ -550,9 +560,21 @@ const ADMIN_USER = { name: 'Quản trị viên', role: 'Admin hệ thống' };
 
 function AdminUserMenu({ onNavigateHome }: { onNavigateHome: () => void }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
 
   return (
-    <div className="relative shrink-0">
+    <div ref={menuRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -575,13 +597,6 @@ function AdminUserMenu({ onNavigateHome }: { onNavigateHome: () => void }) {
 
       <AnimatePresence>
         {open && (
-          <>
-            <button
-              type="button"
-              aria-label="Đóng menu"
-              className="fixed inset-0 z-[100] cursor-default"
-              onClick={() => setOpen(false)}
-            />
             <motion.div
               role="menu"
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -635,7 +650,6 @@ function AdminUserMenu({ onNavigateHome }: { onNavigateHome: () => void }) {
                 </button>
               </div>
             </motion.div>
-          </>
         )}
       </AnimatePresence>
     </div>

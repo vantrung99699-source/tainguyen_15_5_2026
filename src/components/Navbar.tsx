@@ -61,6 +61,7 @@ export default function Navbar({
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(() => sessionToUserData());
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const headerConfig = useSiteHeaderConfig();
   const design = useSiteDesign();
   const { formatMoney, t } = useLocaleCurrency();
@@ -93,6 +94,17 @@ export default function Navbar({
       window.removeEventListener(WALLET_TX_UPDATED, syncBalance);
     };
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showUserMenu]);
 
   return (
     <div className="w-full relative z-[100]">
@@ -230,7 +242,7 @@ export default function Navbar({
                   </div>
 
                   {/* User Menu */}
-                  <div className="relative">
+                  <div ref={userMenuRef} className="relative">
                     <button
                       onClick={() => setShowUserMenu(!showUserMenu)}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
