@@ -3,6 +3,7 @@ import {
   Fragment,
   useEffect,
   useRef,
+  useMemo,
   type ReactNode,
   type ChangeEvent,
   type ComponentType,
@@ -16,6 +17,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  GripVertical,
   Clock,
   Link2,
   MoreVertical,
@@ -56,6 +58,8 @@ import { loadApiProviders } from '../../services/apiProviderConfig';
 import {
   mapProviderProductToItemFields,
   normalizeItemExternalApi,
+  getItemApiLinkSummary,
+  formatProviderRawPrice,
 } from '../../services/itemApiService';
 import ItemSalesStatsModal from '../../components/admin/ItemSalesStatsModal';
 import { PreorderAdminTab } from './PreorderAdminTab';
@@ -161,6 +165,73 @@ function resolveItemSlug(input: string) {
   const trimmed = input.trim();
   if (!trimmed) return generateAutoItemSlug();
   return trimmed;
+}
+
+function reorderByIndex<T>(list: T[], fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= list.length ||
+    toIndex >= list.length
+  ) {
+    return list;
+  }
+  const next = [...list];
+  const [removed] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, removed);
+  return next;
+}
+
+function SortControls({
+  index,
+  count,
+  onMove,
+  draggable,
+  onDragStart,
+  label,
+}: {
+  index: number;
+  count: number;
+  onMove: (direction: 'up' | 'down') => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        draggable={draggable}
+        onDragStart={onDragStart}
+        title={`Kéo để sắp xếp ${label}`}
+        className={`flex cursor-grab touch-none flex-col items-center rounded-md p-0.5 text-zinc-400 active:cursor-grabbing ${
+          draggable ? 'hover:bg-zinc-100 hover:text-zinc-600' : 'opacity-40'
+        }`}
+      >
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <div className="flex flex-col gap-0.5">
+        <button
+          type="button"
+          disabled={index <= 0}
+          onClick={() => onMove('up')}
+          aria-label={`Đưa ${label} lên`}
+          className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          disabled={index >= count - 1}
+          onClick={() => onMove('down')}
+          aria-label={`Đưa ${label} xuống`}
+          className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const SALE_MODE_OPTIONS: { value: SaleMode; label: string }[] = [
@@ -372,6 +443,67 @@ const initialShops: ServiceShop[] = [
 
 function formatPrice(price: number) {
   return `${price.toLocaleString('vi-VN')}\u00a0đ`;
+}
+
+function ItemApiLinkCell({ item }: { item: ServiceItem }) {
+  const summary = useMemo(
+    () => getItemApiLinkSummary(item),
+    [item.stockSource, item.externalApi, item.price],
+  );
+
+  if (!summary) {
+    return (
+      <div className="min-w-0 text-left">
+        <p className="text-[11px] font-bold text-zinc-500">Kho nội bộ</p>
+        <p className="mt-0.5 text-[10px] text-zinc-400">Không liên kết API</p>
+      </div>
+    );
+  }
+
+  const baseVndLabel =
+    summary.providerBasePriceVnd != null ? formatPrice(summary.providerBasePriceVnd) : '—';
+
+  return (
+    <div
+      className="min-w-0 text-left"
+      title={`${summary.providerName} · SP #${summary.externalProductId}${
+        summary.externalProductName ? ` · ${summary.externalProductName}` : ''
+      } · Giá gốc: ${formatProviderRawPrice(summary.providerRawPrice, summary.providerRawCurrency)}${
+        summary.providerBasePriceVnd != null ? ` (${baseVndLabel})` : ''
+      }`}
+    >
+      <p className="flex items-center gap-1 text-[11px] font-bold text-sky-800">
+        <Plug className="h-3 w-3 shrink-0" />
+        <span className="truncate">{summary.providerName}</span>
+      </p>
+      <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-500">
+        #{summary.externalProductId}
+        {summary.externalProductName ? (
+          <span className="font-sans text-zinc-600"> · {summary.externalProductName}</span>
+        ) : null}
+      </p>
+      <p className="mt-1 text-[11px] leading-snug tabular-nums text-zinc-700">
+        <span className="text-[10px] font-bold uppercase text-zinc-400">Gốc </span>
+        {summary.providerRawPrice != null && summary.providerRawCurrency ? (
+          <>
+            <strong className="text-slate-800">
+              {formatProviderRawPrice(summary.providerRawPrice, summary.providerRawCurrency)}
+            </strong>
+            {summary.providerRawCurrency === 'USD' && summary.providerBasePriceVnd != null ? (
+              <span className="text-zinc-500"> ≈ {baseVndLabel}</span>
+            ) : null}
+          </>
+        ) : summary.providerBasePriceVnd != null ? (
+          <strong className="text-slate-800">{baseVndLabel}</strong>
+        ) : (
+          <span className="text-zinc-400">—</span>
+        )}
+      </p>
+      {summary.estimatedFromSelling ? (
+        <p className="mt-0.5 text-[10px] font-medium text-amber-700">Ước tính từ giá bán</p>
+      ) : null}
+    </div>
+  );
 }
 
 function syncStock(item: ServiceItem): ServiceItem {
@@ -1356,11 +1488,25 @@ function CreateItemModal({
 
 function ServiceShopBlock({
   shop,
+  shopIndex,
+  shopCount,
+  onMoveShop,
+  onDropShop,
+  isShopDragOver,
+  onShopDragEnter,
+  onShopDragLeave,
   onUpdateShop,
   onDeleteShop,
   onOpenStock,
 }: {
   shop: ServiceShop;
+  shopIndex: number;
+  shopCount: number;
+  onMoveShop: (direction: 'up' | 'down') => void;
+  onDropShop: (fromShopId: number) => void;
+  isShopDragOver: boolean;
+  onShopDragEnter: () => void;
+  onShopDragLeave: () => void;
   onUpdateShop: (shop: ServiceShop) => void;
   onDeleteShop: (shopId: number) => void;
   onOpenStock: (itemId: number) => void;
@@ -1372,6 +1518,7 @@ function ServiceShopBlock({
   const [shopMenuOpen, setShopMenuOpen] = useState(false);
   const [itemMenu, setItemMenu] = useState<{ itemId: number; top: number; left: number } | null>(null);
   const [statsItem, setStatsItem] = useState<ServiceItem | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<number | null>(null);
   const shopMenuRef = useRef<HTMLDivElement>(null);
   const itemMenuRef = useRef<HTMLDivElement>(null);
 
@@ -1561,16 +1708,58 @@ function ServiceShopBlock({
     });
   };
 
+  const moveItem = (itemId: number, direction: 'up' | 'down') => {
+    const fromIndex = shop.items.findIndex((i) => i.id === itemId);
+    if (fromIndex < 0) return;
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    onUpdateShop({ ...shop, items: reorderByIndex(shop.items, fromIndex, toIndex) });
+  };
+
+  const moveItemById = (fromId: number, toId: number) => {
+    const fromIndex = shop.items.findIndex((i) => i.id === fromId);
+    const toIndex = shop.items.findIndex((i) => i.id === toId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+    onUpdateShop({ ...shop, items: reorderByIndex(shop.items, fromIndex, toIndex) });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-6 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] ring-1 ring-zinc-100/80"
+      onDragOver={(e) => {
+        e.preventDefault();
+        onShopDragEnter();
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) onShopDragLeave();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const fromShopId = Number(e.dataTransfer.getData('application/x-shop-id'));
+        if (fromShopId && fromShopId !== shop.id) onDropShop(fromShopId);
+        onShopDragLeave();
+      }}
+      className={`mb-6 overflow-hidden rounded-2xl border bg-white shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] ring-1 transition-colors ${
+        isShopDragOver
+          ? 'border-brand-primary/50 ring-brand-primary/20'
+          : 'border-zinc-200/80 ring-zinc-100/80'
+      }`}
     >
       {/* Mục cha — header */}
       <div className="relative flex flex-col justify-between gap-4 border-b border-zinc-100 bg-gradient-to-r from-zinc-50/90 via-white to-emerald-50/30 px-5 py-4 lg:flex-row lg:items-center">
         <div className="absolute left-0 top-0 h-full w-1 rounded-r bg-gradient-to-b from-brand-primary to-emerald-400" />
         <div className="flex items-start gap-4 flex-1 min-w-0 pl-2">
+          <SortControls
+            index={shopIndex}
+            count={shopCount}
+            onMove={onMoveShop}
+            label="mục cha"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/x-shop-id', String(shop.id));
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+          />
           <motion.div whileHover={{ scale: 1.05 }}>
             <CategoryIconAvatar
               preset={resolveSocialIconPreset(shop.iconUrl)}
@@ -1692,14 +1881,20 @@ function ServiceShopBlock({
             className="bg-white"
           >
             <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full min-w-[900px] table-fixed">
+              <table className="w-full min-w-[1080px] table-fixed">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50/90">
+                    <th className="w-[72px] px-3 py-3 text-center text-[11px] font-black uppercase tracking-wide text-zinc-600">
+                      Thứ tự
+                    </th>
                     <th className="w-[180px] px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-zinc-600">
                       Hành động
                     </th>
-                    <th className="w-[36%] max-w-[360px] px-4 py-3 text-left text-[11px] font-black text-slate-700 uppercase tracking-wide">
+                    <th className="w-[28%] max-w-[320px] px-4 py-3 text-left text-[11px] font-black text-slate-700 uppercase tracking-wide">
                       Tên mặt hàng
+                    </th>
+                    <th className="w-[200px] px-4 py-3 text-left text-[11px] font-black uppercase tracking-wide text-sky-800">
+                      API
                     </th>
                     <th className="w-[120px] whitespace-nowrap px-4 py-3 text-center text-[11px] font-black uppercase tracking-wide text-slate-700">
                       Đơn giá
@@ -1725,8 +1920,36 @@ function ServiceShopBlock({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.04 }}
-                      className="border-b border-zinc-100 transition-colors hover:bg-emerald-50/30"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverItemId(item.id);
+                      }}
+                      onDragLeave={() => setDragOverItemId(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const fromId = Number(e.dataTransfer.getData('application/x-item-id'));
+                        if (fromId && fromId !== item.id) moveItemById(fromId, item.id);
+                        setDragOverItemId(null);
+                      }}
+                      className={`border-b border-zinc-100 transition-colors hover:bg-emerald-50/30 ${
+                        dragOverItemId === item.id ? 'bg-emerald-50/80 ring-1 ring-inset ring-brand-primary/25' : ''
+                      }`}
                     >
+                      <td className="px-3 py-3">
+                        <div className="flex justify-center">
+                          <SortControls
+                            index={index}
+                            count={shop.items.length}
+                            onMove={(direction) => moveItem(item.id, direction)}
+                            label="mặt hàng"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/x-item-id', String(item.id));
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                          />
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <motion.div
                           initial={{ opacity: 0, x: -4 }}
@@ -1783,11 +2006,6 @@ function ServiceShopBlock({
                                   className="text-[13px] font-bold text-brand-primary"
                                 />
                               </div>
-                              {item.stockSource === 'external_api' && item.externalApi?.enabled ? (
-                                <span className="inline-block shrink-0 rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
-                                  API
-                                </span>
-                              ) : null}
                               {item.visibility === 'hidden' && (
                                 <span className="inline-block shrink-0 rounded bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
                                   Ẩn
@@ -1802,6 +2020,9 @@ function ServiceShopBlock({
                             )}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <ItemApiLinkCell item={item} />
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-center">
                         <span className="text-sm font-black tabular-nums text-slate-900">
@@ -2017,6 +2238,7 @@ export default function CreateServiceSection({
   const [shops, setShops] = useState<ServiceShop[]>(() => loadServiceShops());
   const [adminView, setAdminView] = useState<'shops' | 'preorders'>('shops');
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
+  const [dragOverShopId, setDragOverShopId] = useState<number | null>(null);
 
   useEffect(() => {
     saveServiceShops(shops);
@@ -2062,6 +2284,24 @@ export default function CreateServiceSection({
     setShowCreateShopModal(false);
   };
 
+  const moveShop = (shopId: number, direction: 'up' | 'down') => {
+    setShops((prev) => {
+      const fromIndex = prev.findIndex((s) => s.id === shopId);
+      if (fromIndex < 0) return prev;
+      const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+      return reorderByIndex(prev, fromIndex, toIndex);
+    });
+  };
+
+  const dropShop = (fromShopId: number, toShopId: number) => {
+    setShops((prev) => {
+      const fromIndex = prev.findIndex((s) => s.id === fromShopId);
+      const toIndex = prev.findIndex((s) => s.id === toShopId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      return reorderByIndex(prev, fromIndex, toIndex);
+    });
+  };
+
   if (stockContext) {
     return (
       <ItemStockPage
@@ -2104,7 +2344,7 @@ export default function CreateServiceSection({
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-primary">Dịch vụ</p>
           <h2 className="mt-1 text-xl font-black tracking-tight text-zinc-900">Danh sách shop & mặt hàng</h2>
           <p className="mt-1 text-[13px] font-medium text-zinc-500">
-            Mục cha (shop) · Mặt hàng con · Kho tài nguyên
+            Mục cha (shop) · Mặt hàng con · Kéo hoặc dùng mũi tên để sắp xếp thứ tự hiển thị
           </p>
         </div>
         <button
@@ -2160,10 +2400,17 @@ export default function CreateServiceSection({
         </div>
       )}
 
-      {shops.map((shop) => (
+      {shops.map((shop, shopIndex) => (
         <Fragment key={shop.id}>
           <ServiceShopBlock
             shop={shop}
+            shopIndex={shopIndex}
+            shopCount={shops.length}
+            onMoveShop={(direction) => moveShop(shop.id, direction)}
+            onDropShop={(fromShopId) => dropShop(fromShopId, shop.id)}
+            isShopDragOver={dragOverShopId === shop.id}
+            onShopDragEnter={() => setDragOverShopId(shop.id)}
+            onShopDragLeave={() => setDragOverShopId(null)}
             onUpdateShop={(updated) =>
               setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
             }

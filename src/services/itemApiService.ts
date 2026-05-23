@@ -3,6 +3,7 @@ import type {
   EffectiveApiRuntimeConfig,
   ItemApiFieldSync,
   ItemApiPriceMarkup,
+  ItemStockSource,
 } from '../types/itemApi';
 import {
   DEFAULT_ITEM_API_FIELD_SYNC,
@@ -107,6 +108,91 @@ export function applyPriceMarkup(basePrice: number, markup: ItemApiPriceMarkup):
     return Math.max(0, base + Math.round(markup.value));
   }
   return Math.max(0, Math.round(base * (1 + markup.value / 100)));
+}
+
+export function reversePriceMarkup(sellingPrice: number, markup: ItemApiPriceMarkup): number {
+  const selling = Math.max(0, Math.round(sellingPrice));
+  if (markup.type === 'fixed') {
+    return Math.max(0, selling - Math.round(markup.value));
+  }
+  const factor = 1 + markup.value / 100;
+  if (factor <= 0) return selling;
+  return Math.max(0, Math.round(selling / factor));
+}
+
+export function findProviderProductSync(externalProductId: string): ApiProviderProduct | null {
+  const id = externalProductId.trim();
+  if (!id) return null;
+  return DEMO_PROVIDER_PRODUCTS.find((p) => p.id === id) ?? null;
+}
+
+export interface ItemApiLinkSummary {
+  providerId: string;
+  providerName: string;
+  externalProductId: string;
+  externalProductName?: string;
+  providerRawPrice: number | null;
+  providerRawCurrency: 'VND' | 'USD' | null;
+  providerBasePriceVnd: number | null;
+  estimatedFromSelling: boolean;
+  sellingPrice: number;
+}
+
+export function formatProviderRawPrice(
+  amount: number | null,
+  currency: 'VND' | 'USD' | null,
+): string {
+  if (amount == null || !Number.isFinite(amount)) return '—';
+  if (currency === 'VND') return `${amount.toLocaleString('vi-VN')}đ`;
+  return `$${amount}`;
+}
+
+export function getItemApiLinkSummary(item: {
+  stockSource?: ItemStockSource;
+  externalApi?: Partial<ItemExternalApiConfig> | null;
+  price: number;
+}): ItemApiLinkSummary | null {
+  if (item.stockSource !== 'external_api') return null;
+  const api = normalizeItemExternalApi(item.externalApi ?? undefined);
+  if (!api.enabled || !api.providerId.trim() || !api.externalProductId.trim()) return null;
+
+  const provider =
+    getApiProviderById(api.providerId) ??
+    loadApiProviders().find((p) => p.id === api.providerId) ??
+    null;
+  const product = findProviderProductSync(api.externalProductId);
+
+  let providerRawPrice: number | null = null;
+  let providerRawCurrency: 'VND' | 'USD' | null = null;
+  let providerBasePriceVnd: number | null = null;
+  let externalProductName: string | undefined;
+  let estimatedFromSelling = false;
+
+  if (product && provider) {
+    externalProductName = product.channel ? `${product.name} - ${product.channel}` : product.name;
+    providerRawCurrency = resolveProviderProductCurrency(product, provider.serviceCurrency);
+    providerRawPrice =
+      product.retailPrice != null ? product.retailPrice : product.price != null ? product.price : null;
+    providerBasePriceVnd = getProviderBasePriceVnd(product, {
+      serviceCurrency: provider.serviceCurrency,
+      exchangeRateToVnd: provider.exchangeRateToVnd,
+    });
+  } else {
+    providerBasePriceVnd = reversePriceMarkup(item.price, api.priceMarkup);
+    estimatedFromSelling = true;
+  }
+
+  return {
+    providerId: api.providerId,
+    providerName: provider?.name ?? 'NCC không xác định',
+    externalProductId: api.externalProductId,
+    externalProductName,
+    providerRawPrice,
+    providerRawCurrency,
+    providerBasePriceVnd,
+    estimatedFromSelling,
+    sellingPrice: item.price,
+  };
 }
 
 export function mapProviderProductToItemFields(
