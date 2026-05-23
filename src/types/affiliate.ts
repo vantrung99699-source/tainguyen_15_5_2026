@@ -1,4 +1,4 @@
-export type AffiliateCommissionMode = 'first_order' | 'lifetime';
+export type AffiliateCommissionSource = 'deposit' | 'order';
 
 export type AffiliateCommissionStatus = 'pending' | 'credited' | 'reversed';
 
@@ -10,8 +10,6 @@ export interface AffiliateSettings {
   enabled: boolean;
   defaultCommissionPercent: number;
   minWithdrawalAmount: number;
-  commissionMode: AffiliateCommissionMode;
-  autoApproveCommission: boolean;
   cookieTtlDays: number;
   updatedAt: string;
 }
@@ -22,8 +20,12 @@ export interface AffiliateCommission {
   referrerUsername: string;
   buyerUserId: string;
   buyerUsername: string;
+  /** Mã giao dịch nạp tiền (hoặc mã đơn — dữ liệu cũ) */
   orderId: string;
+  /** Số tiền nạp / giá trị đơn (dữ liệu cũ) */
   orderAmount: number;
+  sourceType?: AffiliateCommissionSource;
+  depositTransactionId?: string;
   commissionPercent: number;
   commissionAmount: number;
   status: AffiliateCommissionStatus;
@@ -72,8 +74,8 @@ export const AFFILIATE_WITHDRAWAL_METHOD_LABELS: Record<AffiliateWithdrawalMetho
 };
 
 export const AFFILIATE_COMMISSION_STATUS_LABELS: Record<AffiliateCommissionStatus, string> = {
-  pending: 'Chờ duyệt',
-  credited: 'Đã cộng số dư',
+  pending: 'Đang xử lý',
+  credited: 'Đã cộng ngay',
   reversed: 'Đã thu hồi',
 };
 

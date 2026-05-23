@@ -144,7 +144,7 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
           <motion.div>
             <h1 className="text-2xl font-black text-slate-800">Kiếm tiền / Affiliate</h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500">
-              Chia sẻ link, nhận hoa hồng khi cấp dưới mua hàng
+              Chia sẻ link — nhận hoa hồng ngay khi cấp dưới nạp tiền (tự động, không cần duyệt)
             </p>
           </motion.div>
         </div>
@@ -173,7 +173,7 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
                 { icon: Users, label: 'User đăng ký qua link', value: overview.referralCount },
                 {
                   icon: TrendingUp,
-                  label: 'Doanh thu tạm tính',
+                  label: 'Tổng nạp từ ref',
                   value: `${overview.affiliateRevenue.toLocaleString('vi-VN')} đ`,
                 },
                 {
@@ -203,8 +203,8 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
             <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
               <p className="mb-2 text-sm font-black text-slate-800">Link giới thiệu</p>
               <p className="mb-3 text-xs text-slate-500">
-                Chia sẻ link đăng ký — cookie lưu {settings.cookieTtlDays} ngày, khách quay lại mua
-                vẫn tính hoa hồng
+                Chia sẻ link đăng ký — cookie lưu {settings.cookieTtlDays} ngày. Khi người được giới
+                thiệu nạp tiền, bạn nhận hoa hồng ngay vào ví affiliate.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <code className="flex-1 break-all rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
@@ -307,13 +307,18 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
         )}
 
         {tab === 'commissions' && (
-          <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="space-y-3">
+            <p className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-2.5 text-[12px] font-medium text-emerald-900">
+              Hoa hồng được cộng ngay vào số dư affiliate khi cấp dưới nạp tiền thành công — không cần
+              chờ admin duyệt.
+            </p>
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
             <table className="w-full min-w-[800px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase text-slate-500">
                   <th className="px-4 py-3">Thời gian</th>
-                  <th className="px-4 py-3">Đơn hàng</th>
-                  <th className="px-4 py-3">Giá trị đơn</th>
+                  <th className="px-4 py-3">Mã GD</th>
+                  <th className="px-4 py-3">Số tiền nạp</th>
                   <th className="px-4 py-3">%</th>
                   <th className="px-4 py-3">Hoa hồng</th>
                   <th className="px-4 py-3">Trạng thái</th>
@@ -356,6 +361,7 @@ export default function AffiliatePage({ onBack }: AffiliatePageProps) {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         )}
 

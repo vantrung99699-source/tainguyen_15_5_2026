@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import type { ProductCardStyle } from '../types/siteDesign';
 import { ProductCover } from './ProductCover';
 import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
+import { Trans } from './i18n/Trans';
 
 function stripHtml(text: string) {
   return text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -50,10 +51,12 @@ function parseFeatureLines(text: string): string[] {
 }
 
 function ProductCardHeading({
+  productId,
   displayName,
   shortDescription,
   size = 'default',
 }: {
+  productId: string;
   displayName: string;
   shortDescription: string;
   size?: 'default' | 'compact' | 'list';
@@ -70,23 +73,23 @@ function ProductCardHeading({
       ? 'mt-1.5 line-clamp-2 font-sans text-[11px] font-normal normal-case leading-relaxed tracking-normal text-zinc-500'
       : 'mt-1.5 line-clamp-2 font-sans text-[12px] font-normal normal-case leading-relaxed tracking-normal text-zinc-500';
 
-  const title = truncateWithEllipsis(softenLongWords(displayName), NO_COVER_MAX_TITLE_CHARS);
-  const desc = shortDescription
-    ? truncateWithEllipsis(softenLongWords(shortDescription), NO_COVER_MAX_FEATURE_CHARS * 2)
-    : '';
-
   return (
     <div className="min-w-0">
-      <h3
+      <Trans
+        dynamic={{ entityType: 'product', entityId: productId, field: 'name' }}
+        fallback={displayName}
+        as="h3"
         className={`min-w-0 overflow-hidden break-words font-[family-name:var(--font-product)] ${titleClass} transition-colors group-hover:text-brand-primary`}
         title={displayName}
-      >
-        {title}
-      </h3>
-      {desc ? (
-        <p className={`min-w-0 overflow-hidden break-words ${descClass}`} title={shortDescription}>
-          {desc}
-        </p>
+      />
+      {shortDescription.trim() ? (
+        <Trans
+          dynamic={{ entityType: 'product', entityId: productId, field: 'shortDescription' }}
+          fallback={shortDescription}
+          as="p"
+          className={`min-w-0 overflow-hidden break-words ${descClass}`}
+          title={shortDescription}
+        />
       ) : null}
     </div>
   );
@@ -112,7 +115,6 @@ function BuyActions({
   onPreorder?: (product: Product) => void;
   layout?: 'default' | 'compact' | 'list';
 }) {
-  const { t } = useLocaleCurrency();
   const hasStock = product.stock > 0;
   const showPreorder = Boolean(product.preorderEnabled && product.shopId && product.itemId);
   const buyNowEnabled = hasStock;
@@ -132,7 +134,7 @@ function BuyActions({
           layout === 'list' ? 'h-10 w-full text-[12px]' : layout === 'compact' ? 'py-2 text-[10px]' : 'mt-4 w-full py-2.5 text-[11px]'
         }`}
       >
-        {t('product_out_of_stock', 'Hết hàng')}
+        <Trans tKey="product_out_of_stock" fallback="Hết hàng" />
       </span>
     );
   }
@@ -161,7 +163,7 @@ function BuyActions({
         className={`flex w-full items-center justify-center gap-1.5 font-bold transition-all ${btnRound} ${btnHeight} ${btnText} ${buyBtnClass}`}
       >
         <ShoppingCart className={iconSize} />
-        {t('product_buy_now', 'Mua ngay')}
+        <Trans tKey="product_buy_now" fallback="Mua ngay" />
       </button>
       {showPreorder ? (
         <button
@@ -173,7 +175,7 @@ function BuyActions({
           className={`flex w-full items-center justify-center gap-1.5 border border-violet-200 bg-violet-50 font-bold text-violet-800 transition-colors hover:bg-violet-100 ${btnRound} ${btnHeight} ${btnText}`}
         >
           <Clock className={iconSize} />
-          {t('product_preorder', 'Đặt trước')}
+          <Trans tKey="product_preorder" fallback="Đặt trước" />
         </button>
       ) : null}
     </div>
@@ -181,7 +183,7 @@ function BuyActions({
 }
 
 function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps) {
-  const { formatMoney, t } = useLocaleCurrency();
+  const { formatMoney } = useLocaleCurrency();
   const { displayName, shortDescription } = useProductCardText(product);
   const hasStock = product.stock > 0;
 
@@ -206,13 +208,14 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 sm:py-0.5">
         <ProductCardHeading
+          productId={product.id}
           displayName={displayName}
           shortDescription={shortDescription}
           size="list"
         />
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
           <span className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700 ring-1 ring-emerald-100">
-            {t('product_sold', 'Đã bán')}: {product.sold}
+            <Trans tKey="product_sold" fallback="Đã bán" />: {product.sold}
           </span>
           <span
             className={`rounded-md px-2 py-1 ring-1 ${
@@ -221,8 +224,13 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
                 : 'bg-amber-50 text-amber-800 ring-amber-100'
             }`}
           >
-            {t('product_stock', 'Kho')}: {product.stock}
-            {!hasStock ? ` · ${t('product_out_of_stock', 'Hết hàng')}` : ''}
+            <Trans tKey="product_stock" fallback="Kho" />: {product.stock}
+            {!hasStock ? (
+              <>
+                {' · '}
+                <Trans tKey="product_out_of_stock" fallback="Hết hàng" />
+              </>
+            ) : null}
           </span>
         </div>
       </div>
@@ -230,7 +238,7 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
       <div className="flex w-full shrink-0 flex-col justify-center gap-3 border-t border-zinc-100 pt-4 sm:w-[188px] sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
         <div className="text-center sm:text-right">
           <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">
-            {t('product_price_label', 'Giá')}
+            <Trans tKey="product_price_label" fallback="Giá" />
           </p>
           <p className="text-xl font-black leading-tight text-red-600">{formatMoney(product.price)}</p>
         </div>
@@ -242,12 +250,11 @@ function ProductCardList({ product, index, onBuy, onPreorder }: ProductCardProps
 
 /** Thẻ không ảnh — layout header / tính năng / thống kê / nút (Thiết kế → Không ảnh) */
 function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardProps) {
-  const { formatMoney, t } = useLocaleCurrency();
+  const { formatMoney } = useLocaleCurrency();
   const { displayName, shortDescription } = useProductCardText(product);
   const features = parseFeatureLines(shortDescription);
   const visibleFeatures = features.slice(0, NO_COVER_MAX_FEATURES);
   const hasMoreFeatures = features.length > NO_COVER_MAX_FEATURES;
-  const displayTitle = truncateWithEllipsis(softenLongWords(displayName), NO_COVER_MAX_TITLE_CHARS);
   const hasStock = product.stock > 0;
   const showPreorder = Boolean(product.preorderEnabled && product.shopId && product.itemId);
   const buyEnabled = hasStock;
@@ -267,12 +274,13 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md shadow-emerald-500/25 ring-2 ring-white">
             <Package className="h-5 w-5 text-white" strokeWidth={2} />
           </div>
-          <h3
+          <Trans
+            dynamic={{ entityType: 'product', entityId: product.id, field: 'name' }}
+            fallback={displayName}
+            as="h3"
             className="line-clamp-3 min-w-0 flex-1 overflow-hidden break-words pt-0.5 font-[family-name:var(--font-product)] text-[12px] font-bold uppercase leading-[1.35] tracking-wide text-[#1E293B] transition-colors group-hover:text-brand-primary sm:text-[13px]"
             title={displayName}
-          >
-            {displayTitle}
-          </h3>
+          />
         </div>
       </div>
 
@@ -299,7 +307,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
             </ul>
           ) : (
             <p className="text-center text-[12px] italic leading-relaxed text-zinc-400">
-              {t('product_no_features', 'Chưa có mô tả tính năng.')}
+              <Trans tKey="product_no_features" fallback="Chưa có mô tả tính năng." />
             </p>
           )}
         </div>
@@ -309,7 +317,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
         <div className="grid grid-cols-3 divide-x divide-zinc-100">
           <div className="flex flex-col items-center justify-center bg-zinc-50/50 px-2 py-3.5 text-center">
             <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
-              {t('product_country', 'Quốc gia')}
+              <Trans tKey="product_country" fallback="Quốc gia" />
             </span>
             <span className="mt-2 rounded-md bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-700 ring-1 ring-zinc-200/80">
               {product.category?.slice(0, 10) || '—'}
@@ -317,7 +325,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-3.5 text-center">
             <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
-              {t('product_in_stock', 'Hiện có')}
+              <Trans tKey="product_in_stock" fallback="Hiện có" />
             </span>
             <span
               className={`mt-2 inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-2.5 py-1 text-[11px] font-black tabular-nums ring-1 ${stockBadgeClass}`}
@@ -327,13 +335,13 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
           </div>
           <div className="flex flex-col items-center justify-center bg-gradient-to-b from-white to-red-50/30 px-2 py-3.5 text-center">
             <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
-              {t('product_price', 'Giá')}
+              <Trans tKey="product_price" fallback="Giá" />
             </span>
             <p className="mt-1.5 text-lg font-black leading-none tracking-tight text-red-600">
               {formatMoney(product.price)}
             </p>
             <p className="mt-1.5 text-[9px] font-semibold text-zinc-400">
-              {t('product_sold', 'Đã bán')}:{' '}
+              <Trans tKey="product_sold" fallback="Đã bán" />:{' '}
               <span className="font-bold text-zinc-600">{product.sold}</span>
             </p>
           </div>
@@ -346,7 +354,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[11px] font-bold uppercase tracking-wide text-zinc-700 shadow-sm transition-all hover:border-brand-primary/40 hover:text-brand-primary"
         >
           <Info className="h-4 w-4 text-brand-primary/80" />
-          {t('product_view_detail', 'Xem chi tiết')}
+          <Trans tKey="product_view_detail" fallback="Xem chi tiết" />
         </button>
         {buyEnabled ? (
           <button
@@ -358,7 +366,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-primary to-emerald-600 py-3 text-[11px] font-bold uppercase tracking-wide text-white shadow-md shadow-emerald-500/25 transition-all hover:shadow-lg hover:shadow-emerald-500/30"
           >
             <ShoppingCart className="h-4 w-4" />
-            {t('product_buy_now', 'Mua ngay')}
+            <Trans tKey="product_buy_now" fallback="Mua ngay" />
           </button>
         ) : showPreorder ? (
           <button
@@ -370,12 +378,12 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-violet-700 py-3 text-[11px] font-bold uppercase tracking-wide text-white shadow-md shadow-violet-500/20 transition-all hover:from-violet-700 hover:to-violet-800"
           >
             <Clock className="h-4 w-4" />
-            {t('product_preorder', 'Đặt trước')}
+            <Trans tKey="product_preorder" fallback="Đặt trước" />
           </button>
         ) : (
           <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2.5 text-center">
             <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">
-              {t('product_out_of_stock', 'Hết hàng')}
+              <Trans tKey="product_out_of_stock" fallback="Hết hàng" />
             </p>
           </div>
         )}
@@ -389,7 +397,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200/80 bg-violet-50 py-2 text-[10px] font-bold uppercase tracking-wide text-violet-800 transition-colors hover:bg-violet-100"
           >
             <Clock className="h-3.5 w-3.5" />
-            {t('product_preorder', 'Đặt trước')}
+            <Trans tKey="product_preorder" fallback="Đặt trước" />
           </button>
         ) : null}
       </div>
@@ -398,7 +406,7 @@ function ProductCardNoCover({ product, index, onBuy, onPreorder }: ProductCardPr
 }
 
 function ProductCardCompact({ product, index, onBuy, onPreorder }: ProductCardProps) {
-  const { formatMoney, t } = useLocaleCurrency();
+  const { formatMoney } = useLocaleCurrency();
   const { displayName, shortDescription } = useProductCardText(product);
   return (
     <motion.div
@@ -420,13 +428,14 @@ function ProductCardCompact({ product, index, onBuy, onPreorder }: ProductCardPr
       </div>
       <div className="flex flex-1 flex-col p-3">
         <ProductCardHeading
+          productId={product.id}
           displayName={displayName}
           shortDescription={shortDescription}
           size="compact"
         />
         <p className="mt-2 text-base font-bold text-red-600">{formatMoney(product.price)}</p>
         <p className="text-[9px] font-bold text-slate-400">
-          {t('product_sold', 'Bán')} {product.sold} · {t('product_stock', 'Kho')} {product.stock}
+          <Trans tKey="product_sold_short" fallback="Bán" /> {product.sold} · <Trans tKey="product_stock" fallback="Kho" /> {product.stock}
         </p>
         <BuyActions product={product} onBuy={onBuy} onPreorder={onPreorder} layout="compact" />
       </div>
@@ -441,7 +450,7 @@ export default function ProductCard({
   onBuy,
   onPreorder,
 }: ProductCardProps) {
-  const { formatMoney, t } = useLocaleCurrency();
+  const { formatMoney } = useLocaleCurrency();
   const { displayName, shortDescription } = useProductCardText(product);
   if (variant === 'no-cover')
     return (
@@ -480,6 +489,7 @@ export default function ProductCard({
       <div className="flex flex-1 flex-col p-5">
         <div className="grow">
           <ProductCardHeading
+            productId={product.id}
             displayName={displayName}
             shortDescription={shortDescription}
           />
@@ -487,19 +497,21 @@ export default function ProductCard({
 
         <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-4">
           <div className="flex flex-col">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]">Niêm yết</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#94A3B8]">
+              <Trans tKey="product_listed" fallback="Niêm yết" />
+            </span>
             <span className="text-lg font-bold text-red-600">{formatMoney(product.price)}</span>
           </div>
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-bold italic text-emerald-600">
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               <span>
-                {t('product_sold', 'Đã bán')}: {product.sold}
+                <Trans tKey="product_sold" fallback="Đã bán" />: {product.sold}
               </span>
             </div>
             <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1 text-[10px] font-bold italic text-slate-500">
               <span>
-                {t('product_stock', 'Kho')}: {product.stock}
+                <Trans tKey="product_stock" fallback="Kho" />: {product.stock}
               </span>
             </div>
           </div>
@@ -511,7 +523,7 @@ export default function ProductCard({
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-[11px] font-bold text-slate-600 transition-all hover:border-brand-primary hover:text-brand-primary"
         >
           <Info className="h-3.5 w-3.5" />
-          Chi tiết
+          <Trans tKey="product_detail" fallback="Chi tiết" />
         </button>
       </div>
     </motion.div>

@@ -127,8 +127,7 @@ const menuGroups: { title: string; items: AdminMenuItem[] }[] = [
     items: [
       { id: 'statistics', label: 'Thống kê', icon: LayoutDashboard },
       { id: 'users', label: 'Quản lý người dùng', icon: Users },
-      { id: 'create-service', label: 'Tạo dịch vụ', icon: Wrench },
-      { id: 'create-product', label: 'Tạo sản phẩm', icon: Package },
+      { id: 'create-service', label: 'Quản lý sản phẩm', icon: Wrench },
       { id: 'payments', label: 'Quản lý thanh toán', icon: CreditCard },
       { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag },
       { id: 'affiliate', label: 'Affiliate', icon: Share2 },

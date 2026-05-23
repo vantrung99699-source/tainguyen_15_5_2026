@@ -84,5 +84,16 @@ export function addWalletTransaction(params: {
     orderId: params.orderId,
   };
   saveAll([tx, ...loadAllWalletTransactions()]);
+
+  if (params.type === 'deposit' && params.amount > 0) {
+    void import('./affiliateService').then((m) =>
+      m.processDepositCommission({
+        userId: params.userId,
+        transactionId: tx.id,
+        depositAmount: params.amount,
+      }),
+    );
+  }
+
   return tx;
 }

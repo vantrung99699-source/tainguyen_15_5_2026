@@ -15,6 +15,7 @@ import {
   ORDERS_UPDATED,
 } from '../services/orderService';
 import { ClampedProductName } from '../components/common/ClampedProductName';
+import { Trans } from '../components/i18n/Trans';
 
 const PREORDER_STATUS_LABELS: Record<PreorderStatus, string> = {
   pending_admin: 'Chờ xác nhận',
@@ -188,7 +189,9 @@ export default function OrderHistory({ initialTab = 'orders' }: OrderHistoryProp
           >
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </button>
-          <h1 className="text-2xl font-black text-slate-800">Lịch sử đơn hàng</h1>
+          <h1 className="text-2xl font-black text-slate-800">
+            <Trans tKey="page_order_history" fallback="Lịch sử đơn hàng" />
+          </h1>
         </div>
 
         <div className="mb-6 flex gap-2 border-b border-slate-200">

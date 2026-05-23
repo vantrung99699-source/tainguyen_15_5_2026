@@ -69,6 +69,7 @@ function mergeDefaultTranslations(stored: TranslationEntry[]): TranslationEntry[
       const existing = byKey.get(def.key)!;
       byKey.set(def.key, {
         ...existing,
+        hint: existing.hint ?? def.hint,
         values: { ...def.values, ...existing.values },
       });
     }
@@ -206,6 +207,7 @@ export function ensureCategoryTranslations(categoryIds: { id: string; name: stri
     list.push({
       key,
       group: 'category',
+      hint: `Trang chủ — tab danh mục «${cat.name}»`,
       values: { vi: cat.name, en: cat.name, th: cat.name },
     });
     changed = true;

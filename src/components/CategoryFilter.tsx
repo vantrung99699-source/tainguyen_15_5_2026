@@ -3,7 +3,7 @@ import * as LucideIcons from 'lucide-react';
 import { motion } from 'motion/react';
 import type { CategoryFilterLayout } from '../types/siteDesign';
 import { PanelLeft, LayoutGrid } from 'lucide-react';
-import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
+import { Trans } from './i18n/Trans';
 
 interface CategoryFilterProps {
   activeCategory: string;
@@ -11,21 +11,22 @@ interface CategoryFilterProps {
   layout?: CategoryFilterLayout;
 }
 
+function CategoryLabel({ id, name }: { id: string; name: string }) {
+  const tKey = id === 'all' ? 'cat_all' : `cat_${id}`;
+  return <Trans tKey={tKey} fallback={name} className="truncate uppercase" />;
+}
+
 export default function CategoryFilter({
   activeCategory,
   setActiveCategory,
   layout = 'grid',
 }: CategoryFilterProps) {
-  const { t } = useLocaleCurrency();
-  const catLabel = (id: string, fallback: string) =>
-    t(id === 'all' ? 'cat_all' : `cat_${id}`, fallback);
-
   if (layout === 'sidebar') {
     return (
       <aside className="w-full shrink-0 lg:w-[220px]">
         <p className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400">
           <PanelLeft className="h-3.5 w-3.5" />
-          Danh mục
+          <Trans tKey="cat_section_label" fallback="Danh mục" />
         </p>
         <nav className="flex flex-col gap-1">
           {CATEGORIES.map((cat, index) => {
@@ -46,7 +47,7 @@ export default function CategoryFilter({
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" style={{ color: isActive ? 'white' : cat.color }} />
-                <span className="truncate">{catLabel(cat.id, cat.name)}</span>
+                <CategoryLabel id={cat.id} name={cat.name} />
               </motion.button>
             );
           })}
@@ -59,7 +60,7 @@ export default function CategoryFilter({
     <div className="w-full">
       <p className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400">
         <LayoutGrid className="h-3.5 w-3.5" />
-        Danh mục
+        <Trans tKey="cat_section_label" fallback="Danh mục" />
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {CATEGORIES.map((cat, index) => {
@@ -81,7 +82,7 @@ export default function CategoryFilter({
               }`}
             >
               <Icon className="h-5 w-5 shrink-0 transition-colors" style={{ color: isActive ? 'white' : cat.color }} />
-              <span className="truncate uppercase">{catLabel(cat.id, cat.name)}</span>
+              <CategoryLabel id={cat.id} name={cat.name} />
             </motion.button>
           );
         })}

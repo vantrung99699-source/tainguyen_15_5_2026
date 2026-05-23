@@ -94,23 +94,23 @@ export async function dispatchLowStock(params: {
   );
 }
 
-/** Hoa hồng affiliate */
+/** Hoa hồng affiliate (nạp tiền) */
 export async function dispatchAffiliateCredit(params: {
   userId: string;
   amount: number;
-  orderId: string;
+  transactionId: string;
 }) {
   await notifyUserTelegram(
     params.userId,
-    `🎁 +${params.amount.toLocaleString('vi-VN')} đ hoa hồng từ đơn #${params.orderId}`,
+    `🎁 +${params.amount.toLocaleString('vi-VN')} đ hoa hồng từ nạp tiền #${params.transactionId}`,
     (p) => p.notifyAffiliateCredit,
   );
 
   createInAppNotification({
     type: 'promo',
     title: 'Hoa hồng affiliate',
-    shortContent: `+${params.amount.toLocaleString('vi-VN')} đ từ đơn #${params.orderId}`,
-    detailContent: 'Hoa hồng đã được ghi nhận vào ví affiliate của bạn.',
+    shortContent: `+${params.amount.toLocaleString('vi-VN')} đ từ nạp tiền`,
+    detailContent: `Người bạn giới thiệu đã nạp tiền. Hoa hồng đã được cộng vào ví affiliate của bạn.`,
     targetUserId: params.userId,
   });
 }

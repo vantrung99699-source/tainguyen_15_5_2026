@@ -1,4 +1,4 @@
-import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield, FileText, Share2 } from 'lucide-react';
+import { Search, ChevronDown, Phone, Globe, Coins, Mail, User, Facebook, X, Bell, ChevronRight, History, Shield, FileText, Share2, Settings } from 'lucide-react';
 import { attachReferrerOnRegister } from '../services/affiliateService';
 import { useExtraPages } from '../hooks/useExtraPages';
 import { getMenuExtraPages } from '../services/extraPagesConfig';
@@ -16,6 +16,8 @@ import {
 import { WALLET_TX_UPDATED } from '../services/walletTransactionService';
 import { CurrencyLanguageSwitcher } from './common/CurrencyLanguageSwitcher';
 import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
+import { useInlineTranslation } from '../context/InlineTranslationContext';
+import { Trans } from './i18n/Trans';
 import { NotificationBell } from './notifications/NotificationBell';
 import { dispatchLoginAlert } from '../services/notificationDispatcher';
 
@@ -64,7 +66,8 @@ export default function Navbar({
   const userMenuRef = useRef<HTMLDivElement>(null);
   const headerConfig = useSiteHeaderConfig();
   const design = useSiteDesign();
-  const { formatMoney, t } = useLocaleCurrency();
+  const { formatMoney } = useLocaleCurrency();
+  const { canEdit, editMode, toggleEditMode } = useInlineTranslation();
   const contactText = getContactDisplayText(headerConfig);
   const contactHref = getContactHref(headerConfig);
   const visibleNavLinks = headerConfig.navLinks.filter((l) => l.enabled && l.label.trim());
@@ -157,6 +160,22 @@ export default function Navbar({
               </p>
             )}
             <CurrencyLanguageSwitcher variant="dark" />
+            {canEdit && (
+              <button
+                type="button"
+                onClick={toggleEditMode}
+                title={editMode ? 'Tắt chế độ sửa bản dịch' : 'Sửa bản dịch trên trang'}
+                aria-pressed={editMode}
+                className={`flex items-center justify-center rounded-lg border p-1.5 transition-all ${
+                  editMode
+                    ? 'border-sky-300 bg-sky-500/25 text-white shadow-sm shadow-sky-900/20'
+                    : 'border-white/5 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+                data-inline-i18n-ignore
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
@@ -177,11 +196,11 @@ export default function Navbar({
 
             {/* Nav Menu Items - Dark Text for White Header */}
             <nav className="hidden xl:flex items-center gap-7">
-              <NavItem label="Dịch vụ" hasSub isDark />
-              <NavItem 
-                label="Sản phẩm" 
-                hasSub 
-                isDark 
+              <NavItem
+                label="Sản phẩm"
+                i18nKey="menu_products"
+                hasSub
+                isDark
                 subItems={[
                   { label: 'Gmail', href: '#' },
                   { label: 'Tài khoản', href: '#' },
@@ -192,15 +211,18 @@ export default function Navbar({
               <NavItem label="Công cụ" hasSub isDark />
               <NavItem
                 label="Lịch sử"
+                i18nKey="menu_history"
                 hasSub
                 isDark
                 subItems={[
                   {
                     label: 'Lịch sử giao dịch',
+                    i18nKey: 'menu_transactions',
                     onClick: () => onNavigate?.('transaction-history'),
                   },
                   {
                     label: 'Lịch sử đơn hàng',
+                    i18nKey: 'menu_order_history',
                     onClick: () => onNavigate?.('order-history'),
                   },
                 ]}
@@ -208,9 +230,9 @@ export default function Navbar({
               <button
                 type="button"
                 onClick={() => onNavigate?.('deposit')}
-                className="flex items-center gap-1.5 text-orange-500 font-black text-[13px] uppercase tracking-wider hover:text-brand-primary transition-all ml-2"
+                className="ml-2 flex items-center gap-1.5 text-[13px] font-black uppercase tracking-wider text-orange-500 transition-all hover:text-brand-primary"
               >
-                <span className="relative">Nạp tiền</span>
+                <Trans tKey="menu_deposit" fallback="Nạp tiền" className="relative" />
               </button>
             </nav>
           </div>
@@ -264,8 +286,9 @@ export default function Navbar({
                         >
                           <div className="px-4 py-4 border-b border-slate-100">
                             <p className="font-black text-slate-800">{userData.name}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {formatMoney(userData.balance)} {t('balance_label', 'trong tài khoản')}
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              {formatMoney(userData.balance)}{' '}
+                              <Trans tKey="balance_label" fallback="trong tài khoản" />
                             </p>
                           </div>
                           <div className="p-2">
@@ -277,7 +300,8 @@ export default function Navbar({
                               }}
                               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                              <User className="w-4 h-4" /> Tài khoản của tôi
+                              <User className="w-4 h-4" />{' '}
+                              <Trans tKey="menu_account" fallback="Tài khoản của tôi" />
                             </button>
                             <button
                               type="button"
@@ -287,7 +311,8 @@ export default function Navbar({
                               }}
                               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                              <Share2 className="h-4 w-4" /> {t('menu_affiliate', 'Kiếm tiền / Affiliate')}
+                              <Share2 className="h-4 w-4" />{' '}
+                              <Trans tKey="menu_affiliate" fallback="Kiếm tiền / Affiliate" />
                             </button>
                             <button
                               type="button"
@@ -297,13 +322,15 @@ export default function Navbar({
                               }}
                               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                              <Coins className="h-4 w-4" /> {t('menu_transactions', 'Lịch sử giao dịch')}
+                              <Coins className="h-4 w-4" />{' '}
+                              <Trans tKey="menu_transactions" fallback="Lịch sử giao dịch" />
                             </button>
                             <button 
                               onClick={() => onNavigate?.('order-history')}
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-sm font-bold text-slate-600 transition-colors"
                             >
-                              <History className="w-4 h-4" /> {t('menu_order_history', 'Lịch sử đơn hàng')}
+                              <History className="w-4 h-4" />{' '}
+                              <Trans tKey="menu_order_history" fallback="Lịch sử đơn hàng" />
                             </button>
                             <button
                               onClick={() => {
@@ -312,7 +339,8 @@ export default function Navbar({
                               }}
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-emerald-50 text-sm font-bold text-brand-primary transition-colors"
                             >
-                              <Shield className="w-4 h-4" /> Quản lý admin
+                              <Shield className="w-4 h-4" />{' '}
+                              <Trans tKey="menu_admin" fallback="Quản lý admin" />
                             </button>
                             <button
                               type="button"
@@ -322,7 +350,8 @@ export default function Navbar({
                               }}
                               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                              <Bell className="w-4 h-4" /> Thông báo
+                              <Bell className="w-4 h-4" />{' '}
+                              <Trans tKey="menu_notifications" fallback="Thông báo" />
                             </button>
                           </div>
                           <div className="p-2 border-t border-slate-100">
@@ -330,7 +359,7 @@ export default function Navbar({
                               onClick={() => { setIsLoggedIn(false); setUserData(null); setShowUserMenu(false); }}
                               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 transition-colors"
                             >
-                              Đăng xuất
+                              <Trans tKey="auth_logout" fallback="Đăng xuất" />
                             </button>
                           </div>
                         </motion.div>
@@ -340,11 +369,11 @@ export default function Navbar({
                 </>
               ) : (
                 <>
-                  <button onClick={() => { setAuthTab('login'); setShowAuthModal(true); }} className="text-slate-600 hover:text-brand-primary text-[14px] font-black px-4 py-2 transition-all whitespace-nowrap cursor-pointer">
-                    Đăng nhập
+                  <button onClick={() => { setAuthTab('login'); setShowAuthModal(true); }} className="cursor-pointer whitespace-nowrap px-4 py-2 text-[14px] font-black text-slate-600 transition-all hover:text-brand-primary">
+                    <Trans tKey="auth_login" fallback="Đăng nhập" />
                   </button>
-                  <button onClick={() => { setAuthTab('register'); setShowAuthModal(true); }} className="bg-brand-primary hover:bg-brand-secondary text-white text-[14px] font-black px-6 py-2.5 rounded-full transition-all whitespace-nowrap cursor-pointer shadow-md shadow-emerald-100">
-                    Đăng ký
+                  <button onClick={() => { setAuthTab('register'); setShowAuthModal(true); }} className="cursor-pointer whitespace-nowrap rounded-full bg-brand-primary px-6 py-2.5 text-[14px] font-black text-white shadow-md shadow-emerald-100 transition-all hover:bg-brand-secondary">
+                    <Trans tKey="auth_register" fallback="Đăng ký" />
                   </button>
                 </>
               )}
@@ -420,7 +449,7 @@ export default function Navbar({
                     authTab === 'login' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-slate-400 hover:text-slate-600'
                   }`}
                 >
-                  Đăng nhập
+                  <Trans tKey="auth_login" fallback="Đăng nhập" />
                 </button>
                 <button
                   onClick={() => setAuthTab('register')}
@@ -428,7 +457,7 @@ export default function Navbar({
                     authTab === 'register' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-slate-400 hover:text-slate-600'
                   }`}
                 >
-                  Đăng ký
+                  <Trans tKey="auth_register" fallback="Đăng ký" />
                 </button>
               </div>
 
@@ -545,16 +574,24 @@ export default function Navbar({
 
 function NavItem({
   label,
+  i18nKey,
   hasSub,
   isDark,
   subItems,
   hideFooter,
 }: {
   label: string;
+  i18nKey?: string;
   hasSub?: boolean;
   isDark?: boolean;
   hideFooter?: boolean;
-  subItems?: { label: string; href?: string; onClick?: () => void; external?: boolean }[];
+  subItems?: {
+    label: string;
+    i18nKey?: string;
+    href?: string;
+    onClick?: () => void;
+    external?: boolean;
+  }[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -562,6 +599,19 @@ function NavItem({
   const linkClass = `flex items-center gap-1.5 ${
     isDark ? 'text-slate-600 hover:text-brand-primary' : 'text-white hover:text-white/80'
   } text-[14px] font-black tracking-tight transition-all py-2`;
+
+  const labelNode = i18nKey ? (
+    <Trans tKey={i18nKey} fallback={label} />
+  ) : (
+    label
+  );
+
+  const renderSubLabel = (item: NonNullable<typeof subItems>[number]) =>
+    item.i18nKey ? (
+      <Trans tKey={item.i18nKey} fallback={item.label} />
+    ) : (
+      item.label
+    );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -589,14 +639,14 @@ function NavItem({
           onClick={() => hasDropdown && setIsOpen((v) => !v)}
           className={linkClass}
         >
-          <span>{label}</span>
+          {labelNode}
           <motion.span animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
             <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'opacity-30' : 'opacity-60'}`} />
           </motion.span>
         </button>
       ) : (
         <a href="#" className={linkClass}>
-          <span>{label}</span>
+          {labelNode}
         </a>
       )}
 
@@ -617,7 +667,7 @@ function NavItem({
               {subItems!.map((item) =>
                 item.onClick ? (
                   <button
-                    key={item.label}
+                    key={item.i18nKey ?? item.label}
                     type="button"
                     role="menuitem"
                     onClick={() => {
@@ -627,21 +677,22 @@ function NavItem({
                     className="group flex w-full items-center gap-3 rounded-[12px] px-4 py-3 text-left text-[13px] font-bold text-slate-600 transition-all hover:bg-slate-50 hover:text-brand-primary"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 transition-colors group-hover:bg-brand-primary/10">
-                      {item.label.includes('giao dịch') && (
+                      {item.i18nKey === 'menu_transactions' && (
                         <Coins className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
                       )}
-                      {item.label.includes('đơn hàng') && (
+                      {item.i18nKey === 'menu_order_history' && (
                         <History className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
                       )}
-                      {!item.label.includes('giao dịch') && !item.label.includes('đơn hàng') && (
-                        <FileText className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
-                      )}
+                      {item.i18nKey !== 'menu_transactions' &&
+                        item.i18nKey !== 'menu_order_history' && (
+                          <FileText className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
+                        )}
                     </span>
-                    <span>{item.label}</span>
+                    <span>{renderSubLabel(item)}</span>
                   </button>
                 ) : (
                   <a
-                    key={item.label}
+                    key={item.i18nKey ?? item.label}
                     href={item.href ?? '#'}
                     target={item.external ? '_blank' : undefined}
                     rel={item.external ? 'noopener noreferrer' : undefined}
@@ -659,7 +710,7 @@ function NavItem({
                         <FileText className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
                       )}
                     </div>
-                    <span>{item.label}</span>
+                    <span>{renderSubLabel(item)}</span>
                   </a>
                 ),
               )}
@@ -671,7 +722,7 @@ function NavItem({
                   href="#"
                   className="flex items-center justify-center py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 transition-colors hover:text-brand-primary"
                 >
-                  Xem tất cả
+                  <Trans tKey="nav_view_all" fallback="Xem tất cả" />
                 </a>
               </div>
             )}

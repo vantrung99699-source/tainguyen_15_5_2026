@@ -184,7 +184,7 @@ export function createPreorder(params: {
   const shops = loadServiceShops();
   const { item } = findShopItem(shops, params.shopId, params.itemId);
 
-  if (!item || !item.enabled || item.visibility !== 'visible') {
+  if (!item || !item.enabled) {
     return { ok: false, error: 'Mặt hàng không khả dụng.' };
   }
   if (!item.preorderEnabled) {

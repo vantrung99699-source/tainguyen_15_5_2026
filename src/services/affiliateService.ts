@@ -1,4 +1,3 @@
-import type { CustomerOrder } from '../types/customerOrder';
 import type {
   AffiliateCampaignLink,
   AffiliateCommission,
@@ -18,7 +17,6 @@ import {
   loadManagedUsers,
   saveManagedUsers,
 } from './userAdmin';
-import { loadCustomerOrders, ORDERS_UPDATED } from './orderService';
 import {
   dispatchAffiliateCredit,
   dispatchWithdrawalRequest,
@@ -37,8 +35,6 @@ const DEFAULT_SETTINGS: AffiliateSettings = {
   enabled: true,
   defaultCommissionPercent: 10,
   minWithdrawalAmount: 100_000,
-  commissionMode: 'lifetime',
-  autoApproveCommission: true,
   cookieTtlDays: 30,
   updatedAt: new Date().toISOString(),
 };
@@ -78,14 +74,29 @@ export function loadAffiliateSettings(): AffiliateSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as AffiliateSettings) };
+    const parsed = JSON.parse(raw) as Partial<AffiliateSettings>;
+    return {
+      enabled: parsed.enabled ?? DEFAULT_SETTINGS.enabled,
+      defaultCommissionPercent:
+        parsed.defaultCommissionPercent ?? DEFAULT_SETTINGS.defaultCommissionPercent,
+      minWithdrawalAmount:
+        parsed.minWithdrawalAmount ?? DEFAULT_SETTINGS.minWithdrawalAmount,
+      cookieTtlDays: parsed.cookieTtlDays ?? DEFAULT_SETTINGS.cookieTtlDays,
+      updatedAt: parsed.updatedAt ?? DEFAULT_SETTINGS.updatedAt,
+    };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
 }
 
-export function saveAffiliateSettings(patch: Partial<AffiliateSettings>) {
-  const next = { ...loadAffiliateSettings(), ...patch, updatedAt: new Date().toISOString() };
+export function saveAffiliateSettings(settings: AffiliateSettings) {
+  const next: AffiliateSettings = {
+    enabled: settings.enabled,
+    defaultCommissionPercent: settings.defaultCommissionPercent,
+    minWithdrawalAmount: settings.minWithdrawalAmount,
+    cookieTtlDays: settings.cookieTtlDays,
+    updatedAt: new Date().toISOString(),
+  };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
   emitAffiliateUpdated();
 }
@@ -268,7 +279,32 @@ function loadCommissions(): AffiliateCommission[] {
     const raw = localStorage.getItem(COMMISSIONS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as AffiliateCommission[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    let changed = false;
+    const next = parsed.map((c) => {
+      if (c.status !== 'pending') return c;
+      changed = true;
+      const referrer = findUserById(c.referrerUserId, initialManagedUsers);
+      if (referrer) {
+        patchUser(referrer.id, {
+          affiliateBalance: referrer.affiliateBalance + c.commissionAmount,
+          affiliateTotalEarned: referrer.affiliateTotalEarned + c.commissionAmount,
+          affiliateRevenue: referrer.affiliateRevenue + c.orderAmount,
+        });
+      }
+      return {
+        ...c,
+        status: 'credited' as const,
+        creditedAt: c.creditedAt ?? new Date().toISOString(),
+        sourceType: c.sourceType ?? ('deposit' as const),
+      };
+    });
+
+    if (changed) {
+      localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(next));
+    }
+    return next;
   } catch {
     return [];
   }
@@ -279,173 +315,134 @@ function saveCommissions(list: AffiliateCommission[]) {
   emitAffiliateUpdated();
 }
 
-function markOrderCommission(orderId: string, commissionId: string | null, paid: boolean) {
-  const orders = loadCustomerOrders();
-  const idx = orders.findIndex((o) => o.id === orderId);
-  if (idx < 0) return;
-  orders[idx] = {
-    ...orders[idx],
-    affiliateCommissionPaid: paid,
-    affiliateCommissionId: commissionId,
-  };
-  localStorage.setItem('taphoammo_customer_orders', JSON.stringify(orders));
-  window.dispatchEvent(new CustomEvent(ORDERS_UPDATED));
-}
-
 function getCommissionRateForUser(user: ManagedUser, settings: AffiliateSettings): number {
   const custom = getReferralRate(user);
   if (custom !== DEFAULT_REFERRAL_RATE) return custom;
   return settings.defaultCommissionPercent;
 }
 
-function hasPriorCreditedCommission(referrerId: string, buyerId: string): boolean {
-  return loadCommissions().some(
-    (c) =>
-      c.referrerUserId === referrerId &&
-      c.buyerUserId === buyerId &&
-      c.status === 'credited',
-  );
-}
-
-/** Tính hoa hồng khi đơn hoàn thành */
-export function processOrderCommission(order: CustomerOrder): AffiliateCommission | null {
+/** Tính hoa hồng khi cấp dưới nạp tiền thành công */
+export function processDepositCommission(params: {
+  userId: string;
+  transactionId: string;
+  depositAmount: number;
+}): AffiliateCommission | null {
   const settings = loadAffiliateSettings();
   if (!settings.enabled) return null;
-  if (order.status !== 'completed') return null;
-  if (order.affiliateCommissionPaid) return null;
+  if (params.depositAmount <= 0) return null;
 
-  const buyer = findUserById(order.userId, initialManagedUsers);
-  if (!buyer?.referredByUserId) return null;
+  const depositor = findUserById(params.userId, initialManagedUsers);
+  if (!depositor?.referredByUserId) return null;
 
-  const referrer = findUserById(buyer.referredByUserId, initialManagedUsers);
+  const referrer = findUserById(depositor.referredByUserId, initialManagedUsers);
   if (!referrer) return null;
-  if (isSelfReferral(referrer, buyer.id, buyer.username)) return null;
-
-  if (settings.commissionMode === 'first_order') {
-    if (hasPriorCreditedCommission(referrer.id, buyer.id)) return null;
-  }
+  if (isSelfReferral(referrer, depositor.id, depositor.username)) return null;
 
   const existing = loadCommissions().find(
-    (c) => c.orderId === order.id && c.status !== 'reversed',
+    (c) =>
+      c.depositTransactionId === params.transactionId ||
+      (c.sourceType !== 'order' && c.orderId === params.transactionId),
   );
   if (existing) return existing;
 
   const percent = getCommissionRateForUser(referrer, settings);
-  const commissionAmount = Math.floor((order.totalAmount * percent) / 100);
+  const commissionAmount = Math.floor((params.depositAmount * percent) / 100);
   if (commissionAmount <= 0) return null;
-
-  const status: AffiliateCommissionStatus = settings.autoApproveCommission
-    ? 'credited'
-    : 'pending';
 
   const record: AffiliateCommission = {
     id: `AFF${Date.now()}`,
     referrerUserId: referrer.id,
     referrerUsername: referrer.username,
-    buyerUserId: buyer.id,
-    buyerUsername: buyer.username,
-    orderId: order.id,
-    orderAmount: order.totalAmount,
+    buyerUserId: depositor.id,
+    buyerUsername: depositor.username,
+    orderId: params.transactionId,
+    orderAmount: params.depositAmount,
+    sourceType: 'deposit',
+    depositTransactionId: params.transactionId,
     commissionPercent: percent,
     commissionAmount,
-    status,
+    status: 'credited',
     createdAt: new Date().toISOString(),
-    creditedAt: status === 'credited' ? new Date().toISOString() : null,
+    creditedAt: new Date().toISOString(),
     reversedAt: null,
-    note: `Hoa hồng đơn #${order.id}`,
+    note: `Hoa hồng nạp tiền #${params.transactionId}`,
   };
 
   saveCommissions([record, ...loadCommissions()]);
-  markOrderCommission(order.id, record.id, true);
 
-  const revPatch = {
-    affiliateRevenue: referrer.affiliateRevenue + order.totalAmount,
-  };
-  if (status === 'credited') {
-    patchUser(referrer.id, {
-      ...revPatch,
-      affiliateBalance: referrer.affiliateBalance + commissionAmount,
-      affiliateTotalEarned: referrer.affiliateTotalEarned + commissionAmount,
-    });
-    void dispatchAffiliateCredit({
-      userId: referrer.id,
-      amount: commissionAmount,
-      orderId: order.id,
-    });
-  } else {
-    patchUser(referrer.id, revPatch);
-  }
+  patchUser(referrer.id, {
+    affiliateRevenue: referrer.affiliateRevenue + params.depositAmount,
+    affiliateBalance: referrer.affiliateBalance + commissionAmount,
+    affiliateTotalEarned: referrer.affiliateTotalEarned + commissionAmount,
+  });
+
+  void dispatchAffiliateCredit({
+    userId: referrer.id,
+    amount: commissionAmount,
+    transactionId: params.transactionId,
+  });
 
   return record;
-}
-
-/** Thu hồi hoa hồng khi hoàn tiền */
-export function reverseOrderCommission(orderId: string, refundAmount: number) {
-  const settings = loadAffiliateSettings();
-  if (!settings.enabled) return;
-
-  const commissions = loadCommissions();
-  const idx = commissions.findIndex(
-    (c) => c.orderId === orderId && c.status !== 'reversed',
-  );
-  if (idx < 0) return;
-
-  const record = commissions[idx];
-  const order = loadCustomerOrders().find((o) => o.id === orderId);
-  const ratio =
-    order && order.totalAmount > 0
-      ? Math.min(1, refundAmount / order.totalAmount)
-      : 1;
-  const clawback = Math.floor(record.commissionAmount * ratio);
-
-  commissions[idx] = {
-    ...record,
-    status: 'reversed',
-    reversedAt: new Date().toISOString(),
-    note: `${record.note} — Thu hồi ${clawback.toLocaleString('vi-VN')} đ`,
-  };
-  saveCommissions(commissions);
-  markOrderCommission(orderId, null, false);
-
-  const referrer = findUserById(record.referrerUserId, initialManagedUsers);
-  if (!referrer) return;
-
-  if (record.status === 'credited' && clawback > 0) {
-    patchUser(referrer.id, {
-      affiliateBalance: Math.max(0, referrer.affiliateBalance - clawback),
-      affiliateTotalEarned: Math.max(0, referrer.affiliateTotalEarned - clawback),
-    });
-  }
-}
-
-export function approveCommission(commissionId: string): { ok: boolean; error?: string } {
-  const list = loadCommissions();
-  const idx = list.findIndex((c) => c.id === commissionId);
-  if (idx < 0) return { ok: false, error: 'Không tìm thấy' };
-  const c = list[idx];
-  if (c.status !== 'pending') return { ok: false, error: 'Trạng thái không hợp lệ' };
-
-  list[idx] = {
-    ...c,
-    status: 'credited',
-    creditedAt: new Date().toISOString(),
-  };
-  saveCommissions(list);
-
-  const referrer = findUserById(c.referrerUserId, initialManagedUsers);
-  if (referrer) {
-    patchUser(referrer.id, {
-      affiliateBalance: referrer.affiliateBalance + c.commissionAmount,
-      affiliateTotalEarned: referrer.affiliateTotalEarned + c.commissionAmount,
-    });
-  }
-  return { ok: true };
 }
 
 export function getCommissionsForReferrer(userId: string) {
   return loadCommissions()
     .filter((c) => c.referrerUserId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Hoa hồng phát sinh từ lần nạp của user (user là người nạp) */
+export function getCommissionsForBuyer(userId: string) {
+  return loadCommissions()
+    .filter((c) => c.buyerUserId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Hoa hồng nạp tiền đã cộng, khớp số tiền hoàn */
+export function findCreditedDepositCommissionsByAmount(
+  buyerUserId: string,
+  depositAmount: number,
+) {
+  const amount = Math.floor(depositAmount);
+  if (amount <= 0) return [];
+  return getCommissionsForBuyer(buyerUserId).filter(
+    (c) =>
+      c.status === 'credited' &&
+      c.orderAmount === amount &&
+      (c.sourceType === 'deposit' || c.sourceType == null),
+  );
+}
+
+export function reverseDepositCommission(
+  commissionId: string,
+  reason?: string,
+): { ok: true; commission: AffiliateCommission } | { ok: false; error: string } {
+  const list = loadCommissions();
+  const idx = list.findIndex((c) => c.id === commissionId);
+  if (idx < 0) return { ok: false, error: 'Không tìm thấy hoa hồng.' };
+  const c = list[idx];
+  if (c.status !== 'credited') {
+    return { ok: false, error: 'Chỉ thu hồi được hoa hồng đã cộng số dư.' };
+  }
+
+  const reversed: AffiliateCommission = {
+    ...c,
+    status: 'reversed',
+    reversedAt: new Date().toISOString(),
+    note: reason ? `${c.note} · ${reason}` : c.note,
+  };
+  list[idx] = reversed;
+  saveCommissions(list);
+
+  const referrer = findUserById(c.referrerUserId, initialManagedUsers);
+  if (referrer) {
+    patchUser(referrer.id, {
+      affiliateBalance: Math.max(0, referrer.affiliateBalance - c.commissionAmount),
+      affiliateRevenue: Math.max(0, referrer.affiliateRevenue - c.orderAmount),
+    });
+  }
+
+  return { ok: true, commission: reversed };
 }
 
 export function getAllCommissions() {
@@ -618,9 +615,6 @@ export function getAffiliateOverviewForUser(userId: string) {
   const user = findUserById(userId, initialManagedUsers);
   const commissions = getCommissionsForReferrer(userId);
   const referred = getUsers().filter((u) => u.referredByUserId === userId);
-  const pendingCommission = commissions
-    .filter((c) => c.status === 'pending')
-    .reduce((s, c) => s + c.commissionAmount, 0);
   const creditedCommission = commissions
     .filter((c) => c.status === 'credited')
     .reduce((s, c) => s + c.commissionAmount, 0);
@@ -631,7 +625,6 @@ export function getAffiliateOverviewForUser(userId: string) {
     affiliateBalance: user?.affiliateBalance ?? 0,
     affiliateRevenue: user?.affiliateRevenue ?? 0,
     affiliateTotalEarned: user?.affiliateTotalEarned ?? 0,
-    pendingCommission,
     creditedCommission,
     referralCode: user ? ensureUserReferralCode(userId, initialManagedUsers) : '',
   };

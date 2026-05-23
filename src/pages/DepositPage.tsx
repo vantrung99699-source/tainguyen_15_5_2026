@@ -8,6 +8,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Trans } from '../components/i18n/Trans';
 import {
   loadGateways,
   loadGlobalSettings,
@@ -158,7 +159,9 @@ export default function DepositPage() {
       <div className="mb-8 grid gap-8 xl:grid-cols-[minmax(0,440px)_1fr] xl:items-start">
         <div>
           <div className="mb-6">
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900">Nạp tiền vào ví</h1>
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900">
+              <Trans tKey="page_deposit" fallback="Nạp tiền vào ví" />
+            </h1>
             <p className="mt-1 text-[13px] font-medium text-zinc-500">
               {step === 'amount' && 'Chọn ngân hàng, số tiền và xem khuyến mãi'}
               {step === 'qr' && 'Quét mã QR để chuyển khoản'}

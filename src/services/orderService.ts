@@ -3,9 +3,8 @@ import type { PreorderOrder, PreorderStatus } from '../types/preorder';
 import { loadCustomerSession } from './customerSession';
 import { addWalletTransaction } from './walletTransactionService';
 import { adjustUserBalanceById } from './userAdmin';
-/** Dynamic import tránh vòng lặp orderService ↔ affiliateService (gây màn trắng) */
+/** Dynamic import tránh vòng lặp module */
 function afterOrderCompleted(order: CustomerOrder) {
-  void import('./affiliateService').then((m) => m.processOrderCommission(order));
   void import('./notificationDispatcher').then((m) =>
     m.dispatchOrderCompleted({
       orderId: order.id,
@@ -17,8 +16,8 @@ function afterOrderCompleted(order: CustomerOrder) {
   );
 }
 
-function afterOrderRefunded(orderId: string, refundAmount: number) {
-  void import('./affiliateService').then((m) => m.reverseOrderCommission(orderId, refundAmount));
+function afterOrderRefunded(_orderId: string, _refundAmount: number) {
+  /* Hoa hồng affiliate tính theo nạp tiền, không theo đơn hàng */
 }
 
 const PREORDER_STORAGE_KEY = 'taphoammo_preorders';

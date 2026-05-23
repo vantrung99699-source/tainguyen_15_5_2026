@@ -359,7 +359,7 @@ const initialShops: ServiceShop[] = [
         detailDescription: 'Mô tả chi tiết sản phẩm cao cấp.',
         saleMode: 'random',
         visibility: 'hidden',
-        enabled: false,
+        enabled: true,
         resources: [
           { content: 'acc_a|pwd_a', addedAt: '12/03/2024 09:20' },
           { content: 'acc_b|pwd_b', addedAt: '12/03/2024 09:21' },
@@ -1424,7 +1424,6 @@ function ServiceShopBlock({
           ? {
               ...i,
               visibility: i.visibility === 'visible' ? 'hidden' : 'visible',
-              enabled: i.visibility !== 'visible',
             }
           : i,
       ),
@@ -1461,7 +1460,7 @@ function ServiceShopBlock({
       detailDescription: data.detailDescription,
       saleMode: data.saleMode,
       visibility: data.visibility,
-      enabled: data.visibility === 'visible',
+      enabled: true,
       preorderEnabled: data.preorderEnabled,
       preorderMaxWaitDays: data.preorderMaxWaitDays,
       stockSource: data.stockSource,
@@ -1493,7 +1492,6 @@ function ServiceShopBlock({
                 detailDescription: data.detailDescription,
                 saleMode: data.saleMode,
                 visibility: data.visibility,
-                enabled: data.visibility === 'visible',
                 preorderEnabled: data.preorderEnabled,
                 preorderMaxWaitDays: data.preorderMaxWaitDays,
                 stockSource: data.stockSource,

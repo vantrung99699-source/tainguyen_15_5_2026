@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Percent,
   History,
+  Wallet,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -32,6 +33,7 @@ import {
   SystemInfoModal,
   Remove2FAConfirmModal,
   EditReferralRateModal,
+  BalanceManageModal,
   BalanceHistoryModal,
 } from './UsersModals';
 import { EditUserProfileModal } from './EditUserProfileModal';
@@ -39,6 +41,7 @@ import { EditUserProfileModal } from './EditUserProfileModal';
 type UserAction =
   | 'edit-profile'
   | 'edit-referral-rate'
+  | 'manage-balance'
   | 'balance-history'
   | 'remove-2fa'
   | 'system-info';
@@ -190,7 +193,7 @@ type MenuItem =
   | { type: 'login'; label: string; icon: typeof LogIn };
 
 const ACTION_MENU_WIDTH = 224;
-const ACTION_MENU_MAX_HEIGHT = 340;
+const ACTION_MENU_MAX_HEIGHT = 380;
 
 function ActionMenu({
   user,
@@ -215,6 +218,7 @@ function ActionMenu({
       label: 'Chỉnh CK giới thiệu',
       icon: Percent,
     },
+    { type: 'action', id: 'manage-balance', label: 'Quản lý số dư', icon: Wallet },
     { type: 'action', id: 'balance-history', label: 'Lịch sử nạp/trừ tiền', icon: History },
     { type: 'action', id: 'remove-2fa', label: 'Xóa mã 2FA', icon: ShieldOff, danger: user.has2FA },
     { type: 'action', id: 'system-info', label: 'Thông tin hệ thống', icon: Info },
@@ -742,6 +746,16 @@ export default function UsersSection() {
             onClose={closeModal}
             onSave={(referralRatePercent) => {
               updateUser(activeUser.id, { referralRatePercent });
+              closeModal();
+            }}
+          />
+        )}
+        {activeUser && activeAction === 'manage-balance' && (
+          <BalanceManageModal
+            user={activeUser}
+            onClose={closeModal}
+            onSuccess={() => {
+              setUsers(loadManagedUsers(initialManagedUsers));
               closeModal();
             }}
           />

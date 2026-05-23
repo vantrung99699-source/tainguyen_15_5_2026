@@ -12,6 +12,7 @@ import {
   TRANSACTION_TYPE_STYLES,
 } from '../components/wallet/transactionLabels';
 import { useLocaleCurrency } from '../context/LocaleCurrencyContext';
+import { Trans } from '../components/i18n/Trans';
 
 const ALL_TYPES: TransactionType[] = ['deposit', 'credit', 'debit', 'purchase', 'refund'];
 
@@ -20,7 +21,7 @@ interface TransactionHistoryPageProps {
 }
 
 export default function TransactionHistoryPage({ onBack }: TransactionHistoryPageProps) {
-  const { formatMoney: fmt, t } = useLocaleCurrency();
+  const { formatMoney: fmt } = useLocaleCurrency();
   const formatMoney = (amount: number, signed = true) => {
     const prefix = signed && amount > 0 ? '+' : signed && amount < 0 ? '' : '';
     const abs = Math.abs(amount);
@@ -66,10 +67,13 @@ export default function TransactionHistoryPage({ onBack }: TransactionHistoryPag
           </button>
           <motion.div>
             <h1 className="text-2xl font-black text-slate-800">
-              {t('page_transactions', 'Lịch sử giao dịch')}
+              <Trans tKey="page_transactions" fallback="Lịch sử giao dịch" />
             </h1>
             <p className="mt-0.5 text-[13px] font-medium text-slate-500">
-              Nạp tiền, cộng/trừ tiền, mua hàng và hoàn tiền
+              <Trans
+                tKey="page_transactions_subtitle"
+                fallback="Nạp tiền, cộng/trừ tiền, mua hàng và hoàn tiền"
+              />
             </p>
           </motion.div>
         </div>

@@ -37,6 +37,7 @@ import { PreorderStockBlockedModal } from './components/storefront/PreorderStock
 import { PurchaseSuccessModal } from './components/storefront/PurchaseSuccessModal';
 import { ensureDemoCustomerHistory } from './data/demoCustomerHistorySeed';
 import { ensureDemoAffiliateCommissions } from './data/demoAffiliateSeed';
+import { Trans } from './components/i18n/Trans';
 
 interface PurchaseSuccessState {
   variant: 'buy' | 'preorder';
@@ -211,9 +212,16 @@ export default function App() {
             </div>
             <div className="flex flex-col">
               <h3 className="text-xl font-black text-brand-primary tracking-tighter uppercase italic leading-none">
-                Danh mục <span className="text-brand-primary">{categoryName}</span>
+                <Trans tKey="home_category_prefix" fallback="Danh mục" />{' '}
+                <Trans
+                  tKey={category ? `cat_${category.id}` : 'cat_all'}
+                  fallback={categoryName}
+                  className="text-brand-primary"
+                />
               </h3>
-              <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Nhấp để xem tất cả</span>
+              <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                <Trans tKey="home_category_click_hint" fallback="Nhấp để xem tất cả" />
+              </span>
             </div>
             
             {/* Subtle pattern for the 'block' feel */}
@@ -266,13 +274,15 @@ export default function App() {
       <main className="pb-32">
         {extraPageSlug && !activeExtraPage ? (
           <motion.div className="mx-auto max-w-2xl px-6 py-20 text-center">
-            <p className="text-lg font-black text-slate-800">Không tìm thấy trang</p>
+            <p className="text-lg font-black text-slate-800">
+              <Trans tKey="page_not_found" fallback="Không tìm thấy trang" />
+            </p>
             <button
               type="button"
               onClick={closeExtraPage}
               className="mt-4 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-bold text-white"
             >
-              Về trang chủ
+              <Trans tKey="home_back" fallback="Về trang chủ" />
             </button>
           </motion.div>
         ) : activeExtraPage ? (
@@ -340,7 +350,7 @@ export default function App() {
                     className="group relative px-10 py-4 bg-white border-2 border-slate-100 hover:border-brand-primary/30 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1"
                   >
                     <span className="relative z-10 flex items-center gap-3 text-slate-800 font-extrabold text-[14px]">
-                      <span>Xem thêm sản phẩm</span>
+                      <Trans tKey="home_load_more" fallback="Xem thêm sản phẩm" />
                       <div className="w-6 h-6 bg-slate-50 group-hover:bg-brand-primary/10 rounded-lg flex items-center justify-center transition-colors">
                         <TrendingUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-primary transition-colors" />
                       </div>
@@ -361,12 +371,14 @@ export default function App() {
               <div className="bg-gray-50 p-6 rounded-full mb-4">
                 <Sparkles className="w-12 h-12 text-gray-300" />
               </div>
-              <h3 className="text-lg font-bold text-gray-500">Chưa có sản phẩm nào trong danh mục này</h3>
+              <h3 className="text-lg font-bold text-gray-500">
+                <Trans tKey="home_empty_category" fallback="Chưa có sản phẩm nào trong danh mục này" />
+              </h3>
               <button 
                 onClick={() => setActiveCategory('all')}
                 className="mt-4 text-brand-primary font-bold hover:underline"
               >
-                Xem tất cả sản phẩm
+                <Trans tKey="home_view_all_products" fallback="Xem tất cả sản phẩm" />
               </button>
             </motion.div>
           )}
@@ -386,12 +398,18 @@ export default function App() {
             <span className="font-black text-xl tracking-tight text-slate-800 italic uppercase">TapHoa<span className="text-brand-primary">MMO</span></span>
           </div>
           <p className="text-[13px] font-bold text-slate-400">
-            © 2026 TapHoaMMO. Hệ thống mua bán tài nguyên tự động.
+            <Trans tKey="footer_copyright" fallback="© 2026 TapHoaMMO. Hệ thống mua bán tài nguyên tự động." />
           </p>
           <div className="flex space-x-8">
-            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">Điều khoản</a>
-            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">Bảo mật</a>
-            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">API</a>
+            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">
+              <Trans tKey="footer_terms" fallback="Điều khoản" />
+            </a>
+            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">
+              <Trans tKey="footer_privacy" fallback="Bảo mật" />
+            </a>
+            <a href="#" className="font-bold text-[13px] text-slate-500 hover:text-brand-primary transition-colors">
+              <Trans tKey="footer_api" fallback="API" />
+            </a>
           </div>
         </div>
       </footer>

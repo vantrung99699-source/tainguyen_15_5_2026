@@ -12,6 +12,8 @@ export interface Language {
 export interface TranslationEntry {
   key: string;
   group: string;
+  /** Mô tả vị trí hiển thị trên giao diện (giúp admin biết cần dịch gì) */
+  hint?: string;
   values: Record<string, string>;
 }
 

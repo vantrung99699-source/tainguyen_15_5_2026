@@ -83,6 +83,42 @@ export const mockBalanceHistory: Record<string, BalanceTransaction[]> = {
   ],
 };
 
+const ADMIN_BALANCE_HISTORY_KEY = 'taphoammo_admin_balance_history';
+
+function loadStoredBalanceHistory(): Record<string, BalanceTransaction[]> {
+  try {
+    const raw = localStorage.getItem(ADMIN_BALANCE_HISTORY_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, BalanceTransaction[]>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredBalanceHistory(data: Record<string, BalanceTransaction[]>) {
+  localStorage.setItem(ADMIN_BALANCE_HISTORY_KEY, JSON.stringify(data));
+}
+
+export function appendBalanceHistory(
+  userId: string,
+  tx: Omit<BalanceTransaction, 'id' | 'createdAt'>,
+): BalanceTransaction {
+  const record: BalanceTransaction = {
+    ...tx,
+    id: `tx-admin-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  const stored = loadStoredBalanceHistory();
+  const list = [record, ...(stored[userId] ?? [])];
+  saveStoredBalanceHistory({ ...stored, [userId]: list });
+  return record;
+}
+
 export function getBalanceHistory(userId: string): BalanceTransaction[] {
-  return mockBalanceHistory[userId] ?? [];
+  const mock = mockBalanceHistory[userId] ?? [];
+  const stored = loadStoredBalanceHistory()[userId] ?? [];
+  return [...stored, ...mock].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }

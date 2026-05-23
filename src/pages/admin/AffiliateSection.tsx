@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Check, X, TrendingUp, Users, Settings, Wallet } from 'lucide-react';
-import type { AffiliateCommissionMode, AffiliateSettings } from '../../types/affiliate';
+import type { AffiliateSettings } from '../../types/affiliate';
 import {
   AFFILIATE_UPDATED,
-  approveCommission,
   approveWithdrawal,
   getAffiliateAdminStats,
   getAffiliateUsersForAdmin,
-  getAllCommissions,
   getAllWithdrawals,
   loadAffiliateSettings,
   rejectWithdrawal,
@@ -26,7 +24,6 @@ export function AffiliateSection() {
   const [settings, setSettings] = useState<AffiliateSettings>(() => loadAffiliateSettings());
   const [users, setUsers] = useState<ManagedUser[]>(() => getAffiliateUsersForAdmin());
   const [withdrawals, setWithdrawals] = useState(() => getAllWithdrawals());
-  const [commissions, setCommissions] = useState(() => getAllCommissions());
   const [stats, setStats] = useState(() => getAffiliateAdminStats());
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -35,7 +32,6 @@ export function AffiliateSection() {
     setSettings(loadAffiliateSettings());
     setUsers(getAffiliateUsersForAdmin());
     setWithdrawals(getAllWithdrawals());
-    setCommissions(getAllCommissions());
     setStats(getAffiliateAdminStats());
   };
 
@@ -76,7 +72,7 @@ export function AffiliateSection() {
         <div>
           <h2 className="text-base font-black text-zinc-900">Affiliate</h2>
           <p className="text-[12px] text-zinc-500">
-            Cấu hình hoa hồng, thành viên, duyệt rút tiền và báo cáo ROI
+            Hoa hồng khi cấp dưới nạp tiền — thành viên, duyệt rút tiền và báo cáo
           </p>
         </div>
       </div>
@@ -141,33 +137,10 @@ export function AffiliateSection() {
               className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
             />
           </label>
-          <label className="block">
-            <span className="text-sm font-bold text-zinc-700">Loại hoa hồng</span>
-            <select
-              value={settings.commissionMode}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  commissionMode: e.target.value as AffiliateCommissionMode,
-                })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
-            >
-              <option value="first_order">Chỉ đơn đầu tiên</option>
-              <option value="lifetime">Trọn đời (mỗi đơn)</option>
-            </select>
-          </label>
-          <label className="flex items-center justify-between gap-4">
-            <span className="text-sm font-bold text-zinc-700">Tự cộng số dư khi đơn hoàn thành</span>
-            <input
-              type="checkbox"
-              checked={settings.autoApproveCommission}
-              onChange={(e) =>
-                setSettings({ ...settings, autoApproveCommission: e.target.checked })
-              }
-              className="h-5 w-5 rounded accent-emerald-600"
-            />
-          </label>
+          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-900">
+            Hoa hồng được cộng ngay lập tức vào ví affiliate khi người được giới thiệu nạp tiền thành
+            công — không cần admin duyệt. Chỉ yêu cầu rút tiền affiliate mới cần duyệt.
+          </p>
           <label className="block">
             <span className="text-sm font-bold text-zinc-700">Cookie ref (ngày)</span>
             <input
@@ -198,7 +171,7 @@ export function AffiliateSection() {
               <tr className="border-b border-zinc-100 bg-zinc-50 text-[11px] font-bold uppercase text-zinc-500">
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Ref count</th>
-                <th className="px-4 py-3">Doanh thu</th>
+                <th className="px-4 py-3">Tổng nạp ref</th>
                 <th className="px-4 py-3">Số dư AFF</th>
                 <th className="px-4 py-3">% Custom</th>
               </tr>
@@ -362,32 +335,6 @@ export function AffiliateSection() {
               )}
             </div>
           </div>
-
-          {commissions.filter((c) => c.status === 'pending').length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4">
-              <p className="mb-2 text-sm font-black">Hoa hồng chờ duyệt</p>
-              {commissions
-                .filter((c) => c.status === 'pending')
-                .map((c) => (
-                  <div key={c.id} className="mb-2 flex items-center justify-between text-sm">
-                    <span>
-                      {c.referrerUsername} — {c.commissionAmount.toLocaleString('vi-VN')} đ (
-                      {c.orderId})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        approveCommission(c.id);
-                        sync();
-                      }}
-                      className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white"
-                    >
-                      Duyệt
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
         </div>
       )}
     </div>

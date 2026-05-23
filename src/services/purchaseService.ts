@@ -50,7 +50,7 @@ export async function createInstantPurchase(params: {
   const shops = loadServiceShops();
   const { shop, item } = findShopItem(shops, params.shopId, params.itemId);
 
-  if (!item || !item.enabled || item.visibility !== 'visible') {
+  if (!item || !item.enabled) {
     return { ok: false, error: 'Mặt hàng không khả dụng.' };
   }
   if (params.quantity < item.minPurchase || params.quantity > item.maxPurchase) {
